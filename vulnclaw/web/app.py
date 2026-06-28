@@ -62,13 +62,11 @@ def resolve_web_asset(path: str) -> Path:
     if not normalized:
         return resolve_web_index()
 
-    dist_path = FRONTEND_DIST_DIR / normalized
-    if dist_path.exists() and dist_path.is_file():
-        return dist_path
-
-    static_path = STATIC_DIR / normalized
-    if static_path.exists() and static_path.is_file():
-        return static_path
+    for base_dir in (FRONTEND_DIST_DIR, STATIC_DIR):
+        candidate = (base_dir / normalized).resolve()
+        base_resolved = base_dir.resolve()
+        if base_resolved in candidate.parents and candidate.is_file():
+            return candidate
 
     return resolve_web_index()
 

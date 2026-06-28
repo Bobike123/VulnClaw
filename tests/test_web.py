@@ -164,8 +164,10 @@ class TestWebServices:
         import vulnclaw.web.services.report_service as report_service
         from vulnclaw.agent.context import SessionState, VulnerabilityFinding
 
+        sessions_dir = tmp_path / "sessions"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(store_mod, "TARGETS_DIR", tmp_path / "targets")
-        monkeypatch.setattr(report_service, "SESSIONS_DIR", tmp_path / "sessions")
+        monkeypatch.setattr(report_service, "SESSIONS_DIR", sessions_dir)
 
         state = SessionState(target="https://example.com")
         finding = VulnerabilityFinding(
@@ -178,7 +180,7 @@ class TestWebServices:
         state.add_finding(finding)
         store_mod.save_target_state("https://example.com", state, command="scan")
 
-        out = tmp_path / "report.md"
+        out = sessions_dir / "report.md"
         path = report_service.generate_target_report("https://example.com", str(out))
         assert Path(path).exists()
 
