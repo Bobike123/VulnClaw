@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
 
 
-def build_round_context(agent: Any, round_num: int, max_rounds: int) -> str:
+
+def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) -> str:
     """Build context string for the current round in auto loop."""
     state = agent.context.state
     constraints_summary = ""
@@ -319,7 +323,7 @@ def build_round_context(agent: Any, round_num: int, max_rounds: int) -> str:
     )
 
 
-async def generate_attack_summary(agent: Any) -> str:
+async def generate_attack_summary(agent: AgentContext) -> str:
     """Generate a detailed attack path summary for the cycle report."""
     state = agent.context.state
 

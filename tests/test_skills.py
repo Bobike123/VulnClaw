@@ -335,6 +335,69 @@ class TestSkillDispatcher:
         assert skill["name"] == "crypto-toolkit"
 
 
+# ── flag_skills.py ────────────────────────────────────────────────
+
+
+class TestFlagSkills:
+    """Test slash-dot flag skill registry and TUI application helpers."""
+
+    def test_flag_skill_registry_includes_common_and_command_flags(self):
+        from vulnclaw.skills.flag_skills import find_flag_skill
+
+        assert find_flag_skill("/.only-port").canonical == "--only-port"
+        assert find_flag_skill("/.--allow-actions").canonical == "--allow-actions"
+        assert find_flag_skill("parallel-agents").canonical == "--parallel-agents"
+        assert find_flag_skill("allow-remote").canonical == "--allow-remote"
+        assert find_flag_skill("format").canonical == "--format"
+
+    def test_flag_skill_aliases_normalize_slash_dot_forms(self):
+        from vulnclaw.skills.flag_skills import find_flag_skill
+
+        expected = find_flag_skill("--only-port")
+        assert find_flag_skill("/.only-port") == expected
+        assert find_flag_skill("/.--only-port") == expected
+        assert find_flag_skill("only_port") == expected
+
+    def test_complete_flag_skills_filters_by_prefix(self):
+        from vulnclaw.skills.flag_skills import complete_flag_skills
+
+        names = [skill.name for skill in complete_flag_skills("only-")]
+        assert "only-port" in names
+        assert "only-host" in names
+        assert "blocked-host" not in names
+
+    def test_apply_flag_skill_to_tui_state(self):
+        from vulnclaw.cli.tui import TuiState
+        from vulnclaw.skills.flag_skills import apply_flag_skill_to_tui_state, find_flag_skill
+
+        state = TuiState()
+        result = apply_flag_skill_to_tui_state(find_flag_skill("only-port"), "443", state)
+
+        assert result.applied is True
+        assert state.only_port == "443"
+
+    def test_apply_flag_skill_rejects_invalid_port(self):
+        from vulnclaw.cli.tui import TuiState
+        from vulnclaw.skills.flag_skills import apply_flag_skill_to_tui_state, find_flag_skill
+
+        state = TuiState()
+        result = apply_flag_skill_to_tui_state(find_flag_skill("only-port"), "99999", state)
+
+        assert result.applied is False
+        assert result.error is True
+        assert state.only_port == ""
+
+    def test_no_resume_flag_applies_without_value(self):
+        from vulnclaw.cli.tui import TuiState
+        from vulnclaw.skills.flag_skills import apply_flag_skill_to_tui_state, find_flag_skill
+
+        state = TuiState(resume=True)
+        result = apply_flag_skill_to_tui_state(find_flag_skill("no-resume"), "", state)
+
+        assert result.applied is True
+        assert state.resume is False
+
+
 # ── crypto_tools.py ────────────────────────────────────────────────
 
 

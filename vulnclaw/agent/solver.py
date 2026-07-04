@@ -17,7 +17,11 @@ import contextvars
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 from vulnclaw.agent.blackboard import Blackboard, BoardIntent, IntentStatus
 from vulnclaw.agent.llm_client import build_chat_completion_kwargs, call_llm_auto
@@ -239,7 +243,7 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 
-async def _structured_call(agent: Any, prompt: str, *, max_tokens: int = 900) -> str:
+async def _structured_call(agent: AgentContext, prompt: str, *, max_tokens: int = 900) -> str:
     """无工具的结构化 LLM 调用（用于 Reason / Conclude）。"""
     client = agent._get_client()
     messages = [{"role": "user", "content": prompt}]
@@ -469,14 +473,14 @@ def _add_fallback_recovery_intents(board: Blackboard, max_intents: int) -> int:
     return added
 
 
-async def reason_step(agent: Any, board: Blackboard, max_intents: int) -> dict:
+async def reason_step(agent: AgentContext, board: Blackboard, max_intents: int) -> dict:
     raw = await _structured_call(agent, _reason_prompt(board, max_intents), max_tokens=1200)
     parsed = _extract_json(raw)
     return parsed or {}
 
 
 async def frontier_recovery_step(
-    agent: Any,
+    agent: AgentContext,
     board: Blackboard,
     max_intents: int,
     streak: int,
@@ -489,7 +493,7 @@ async def frontier_recovery_step(
 
 
 async def explore_step(
-    agent: Any,
+    agent: AgentContext,
     board: Blackboard,
     intent: BoardIntent,
     *,
@@ -575,7 +579,7 @@ async def explore_step(
 
 
 async def solve(
-    agent: Any,
+    agent: AgentContext,
     *,
     origin: str,
     goal: str,
@@ -883,7 +887,7 @@ async def solve(
 
 
 async def _explore_batch(
-    agent: Any,
+    agent: AgentContext,
     board: Blackboard,
     intents: list[BoardIntent],
     *,

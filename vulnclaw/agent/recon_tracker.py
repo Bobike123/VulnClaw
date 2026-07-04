@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 RECON_MIN_ROUNDS = 8  # 信息收集阶段最低轮数，低于此数 [DONE] 被忽略
 
@@ -133,7 +137,7 @@ RECON_DIM_KEYWORDS: dict[str, list[str]] = {
 }
 
 
-def update_recon_dimension_completion(agent: Any, response: str) -> None:
+def update_recon_dimension_completion(agent: AgentContext, response: str) -> None:
     """Auto-detect which recon dimensions have been explored.
 
     Uses signal-weighted sources instead of blindly scanning all round text.

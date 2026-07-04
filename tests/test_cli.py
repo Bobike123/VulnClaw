@@ -788,6 +788,39 @@ class TestCLI:
         assert "--allow-actions recon,scan" in draft.command_line
         assert "--block-actions exploit,post_exploitation" in draft.command_line
 
+    def test_tui_slash_dot_flag_applies_scope_state(self):
+        import vulnclaw.cli.tui as tui_mod
+
+        session = {"state": tui_mod.TuiState(), "_message": "", "_prompt": None}
+
+        tui_mod._dispatch_slash("/.only-port 443", session)
+        tui_mod._dispatch_slash("/.allow-actions recon,scan", session)
+        tui_mod._dispatch_slash("/.no-resume", session)
+
+        assert session["state"].only_port == "443"
+        assert session["state"].allow_actions == ["recon", "scan"]
+        assert session["state"].resume is False
+
+    def test_tui_slash_dot_flag_without_value_shows_skill_help(self):
+        import vulnclaw.cli.tui as tui_mod
+
+        session = {"state": tui_mod.TuiState(), "_message": "", "_prompt": None}
+
+        tui_mod._dispatch_slash("/.only-port", session)
+
+        assert session["_prompt"][0] == "message"
+        assert "--only-port" in session["_prompt"][1]
+
+    def test_textual_slash_dot_flag_dispatch_applies_state(self):
+        import vulnclaw.cli.tui as tui_mod
+        import vulnclaw.cli.tui_textual as textual_mod
+
+        session = {"state": tui_mod.TuiState(), "_message": "", "_prompt": None}
+
+        textual_mod._dispatch(session, "/.only-host example.com")
+
+        assert session["state"].only_host == "example.com"
+
     def test_tui_runtime_diagnostic_panel_renders_environment_summary(self, monkeypatch):
         import vulnclaw.cli.tui as tui_mod
         from vulnclaw.config.schema import VulnClawConfig

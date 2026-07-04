@@ -53,6 +53,7 @@ from vulnclaw.config.settings import (
     save_config,
 )
 from vulnclaw.i18n import _, init_i18n
+from vulnclaw.skills.flag_skills import complete_flag_skills, render_flag_skill
 from vulnclaw.target_state.store import get_target_state_preview, list_target_snapshots
 
 # ── Slash dispatch ──
@@ -69,6 +70,10 @@ def _register_handler(cmd: str):
 
 def _dispatch(session: dict[str, Any], text: str) -> str | None:
     """Dispatch slash command. Returns 'quit', 'launch', or None."""
+    if text.startswith("/."):
+        _dispatch_flag_skill(session, text)
+        return None
+
     # [修改] 2026-06-10 Nyaecho - 修复空 parts 导致 IndexError 的问题
     parts = text.lstrip("/").strip().split(maxsplit=1)
     if not parts:
@@ -93,6 +98,22 @@ def _cancel_prompt(session: dict[str, Any]) -> None:
         prompt[3]()
 
 
+def _dispatch_flag_skill(session: dict[str, Any], text: str) -> None:
+    command = _tui.parse_flag_skill_command(text)
+    skill = _tui.find_flag_skill(command.query)
+    if skill is None:
+        session["_message"] = f"Unknown flag skill: /.{command.query}"
+        return
+
+    if command.value or skill.tui_action in {"resume_true", "resume_false"}:
+        result = _tui.apply_flag_skill_to_tui_state(skill, command.value, session["state"])
+        if result.applied or result.error:
+            session["_message"] = result.message
+            return
+
+    _set_prompt(session, "message", render_flag_skill(skill))
+
+
 # ── Command palette widget ──
 
 class CommandPalette(ListView):
@@ -102,21 +123,32 @@ class CommandPalette(ListView):
         kwargs.setdefault("id", "cmd-palette")
         super().__init__(**kwargs)
         self._commands: list[str] = []
+        self._completion_prefix = "/"
 
-    def show_commands(self, prefix: str = "") -> None:
+    def show_commands(
+        self,
+        prefix: str = "",
+        *,
+        entries: list[tuple[str, str]] | None = None,
+        completion_prefix: str = "/",
+    ) -> None:
         for item in self.query_children(ListItem):
             item.remove()
         self._commands.clear()
-        for cmd, desc in _tui.SLASH_COMMANDS.items():
+        self._completion_prefix = completion_prefix
+        source_entries = entries if entries is not None else list(_tui.SLASH_COMMANDS.items())
+        for cmd, desc in source_entries:
             if cmd.startswith(prefix):
                 item = ListItem(Static(
-                    f"[bold {C_PRIMARY}]/{cmd}[/]  [{C_MUTED}]{desc}[/]"
+                    f"[bold {C_PRIMARY}]{completion_prefix}{cmd}[/]  [{C_MUTED}]{desc}[/]"
                 ))
                 self.mount(item)
                 self._commands.append(cmd)
         if self._commands:
             self.add_class("open")
             self.index = 0
+        else:
+            self.remove_class("open")
 
     def hide_palette(self) -> None:
         self.remove_class("open")
@@ -129,6 +161,10 @@ class CommandPalette(ListView):
         if self.index is not None and 0 <= self.index < len(self._commands):
             return self._commands[self.index]
         return None
+
+    @property
+    def completion_prefix(self) -> str:
+        return self._completion_prefix
 
 
 # ── Secondary popup widget ──
@@ -798,7 +834,13 @@ class DashboardScreen(Screen):
             return
         text = event.value or ""
         palette = self.query_one(CommandPalette)
-        if text.startswith("/"):
+        if text.startswith("/."):
+            word = text[2:]
+            if " " not in word:
+                entries = [(skill.name, skill.summary) for skill in complete_flag_skills(word)]
+                palette.show_commands(word, entries=entries, completion_prefix="/.")
+                return
+        elif text.startswith("/"):
             word = text.lstrip("/")
             if " " not in word:
                 palette.show_commands(word)
@@ -813,7 +855,7 @@ class DashboardScreen(Screen):
             cmd = palette.selected
             if cmd:
                 self._completing = True
-                self.query_one("#cmd-input").value = "/" + cmd + " "
+                self.query_one("#cmd-input").value = palette.completion_prefix + cmd + " "
                 self.query_one("#cmd-input").action_end()
                 self._completing = False
             palette.hide_palette()
@@ -872,7 +914,7 @@ class DashboardScreen(Screen):
             cmd = p.selected
             if cmd:
                 self._completing = True
-                self.query_one("#cmd-input").value = "/" + cmd + " "
+                self.query_one("#cmd-input").value = p.completion_prefix + cmd + " "
                 self.query_one("#cmd-input").action_end()
                 self._completing = False
             p.hide_palette()

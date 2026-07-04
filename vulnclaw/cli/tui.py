@@ -33,6 +33,13 @@ from vulnclaw.config.settings import (
     save_config,
 )
 from vulnclaw.i18n import _, init_i18n
+from vulnclaw.skills.flag_skills import (
+    apply_flag_skill_to_tui_state,
+    complete_flag_skills,
+    find_flag_skill,
+    parse_flag_skill_command,
+    render_flag_skill_compact,
+)
 from vulnclaw.target_state.store import get_target_state_preview, list_target_snapshots
 
 # ── opencode-inspired colour palette ──
@@ -435,19 +442,35 @@ def _run_pt_tui(session: dict[str, Any]) -> Optional[str]:
 
     session["_palette_idx"] = 0
 
-    def _palette_visible() -> bool:
+    def _palette_context() -> tuple[str, str] | None:
         text = input_buffer.text
-        if not text.startswith("/"):
-            return False
-        word = text.lstrip("/")
-        if " " in word:
-            return False
-        return True
+        if text.startswith("/."):
+            word = text[2:]
+            if " " in word:
+                return None
+            return "flag", word
+        if text.startswith("/"):
+            word = text.lstrip("/")
+            if " " in word:
+                return None
+            return "slash", word
+        return None
+
+    def _palette_visible() -> bool:
+        return _palette_context() is not None
 
     def _palette_filtered() -> list[tuple[str, str]]:
-        word = input_buffer.text.lstrip("/")
-        return [(cmd, desc) for cmd, desc in SLASH_COMMANDS.items()
-                if cmd.startswith(word)]
+        context = _palette_context()
+        if context is None:
+            return []
+        kind, word = context
+        if kind == "flag":
+            return [(skill.name, skill.summary) for skill in complete_flag_skills(word)]
+        return [(cmd, desc) for cmd, desc in SLASH_COMMANDS.items() if cmd.startswith(word)]
+
+    def _palette_prefix() -> str:
+        context = _palette_context()
+        return "/." if context and context[0] == "flag" else "/"
 
     def _palette_content() -> list[tuple[str, str]]:
         items = _palette_filtered()
@@ -462,10 +485,10 @@ def _run_pt_tui(session: dict[str, Any]) -> Optional[str]:
         for i, (cmd, desc) in enumerate(items):
             prefix = "▸" if i == sel else " "
             if i == sel:
-                result.append((f"fg:{C_PRIMARY} bold bg:#2a2a2a", f" {prefix} /{cmd:<12}"))
+                result.append((f"fg:{C_PRIMARY} bold bg:#2a2a2a", f" {prefix} {_palette_prefix()}{cmd:<12}"))
                 result.append((f"fg:{C_MUTED} bg:#2a2a2a", f" {desc}\n"))
             else:
-                result.append((f"fg:{C_PRIMARY} bold bg:#1e1e1e", f" {prefix} /{cmd:<12}"))
+                result.append((f"fg:{C_PRIMARY} bold bg:#1e1e1e", f" {prefix} {_palette_prefix()}{cmd:<12}"))
                 result.append((f"fg:{C_MUTED} bg:#1e1e1e", f" {desc}\n"))
         result.append((f"fg:{C_BORDER} bg:#1e1e1e", "╰" + "─" * box_inner + "╯"))
         return result
@@ -476,7 +499,7 @@ def _run_pt_tui(session: dict[str, Any]) -> Optional[str]:
         items = _palette_filtered()
         if items:
             sel = session["_palette_idx"] % len(items)
-            input_buffer.text = "/" + items[sel][0]
+            input_buffer.text = _palette_prefix() + items[sel][0]
             input_buffer.cursor_position = len(input_buffer.text)
 
     body = HSplit([
@@ -692,6 +715,23 @@ def _build_slash_completer() -> Any:
             if not text.startswith("/"):
                 return
 
+            if text.startswith("/."):
+                word = text[2:]
+                if " " in word:
+                    return
+                for skill in complete_flag_skills(word):
+                    start_position = -len(word) if word else 0
+                    yield Completion(
+                        skill.name,
+                        start_position=start_position,
+                        display=[
+                            (f"fg:{C_PRIMARY} bold", f"/.{skill.name}"),
+                            ("", "  "),
+                            (f"fg:{C_MUTED}", skill.summary),
+                        ],
+                    )
+                return
+
             word = text.lstrip("/")
 
             if not word:
@@ -719,6 +759,10 @@ def _build_slash_completer() -> Any:
 
 
 def _dispatch_slash(text: str, session: dict[str, Any]) -> None:
+    if text.startswith("/."):
+        _dispatch_flag_skill(text, session)
+        return
+
     parts = text.lstrip("/").strip().split(maxsplit=1)
     cmd = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
@@ -737,6 +781,22 @@ def _register_handler(cmd: str):
         _SLASH_HANDLERS[cmd] = fn
         return fn
     return deco
+
+
+def _dispatch_flag_skill(text: str, session: dict[str, Any]) -> None:
+    command = parse_flag_skill_command(text)
+    skill = find_flag_skill(command.query)
+    if skill is None:
+        session["_message"] = f"Unknown flag skill: /.{command.query}"
+        return
+
+    if command.value or skill.tui_action in {"resume_true", "resume_false"}:
+        result = apply_flag_skill_to_tui_state(skill, command.value, session["state"])
+        if result.applied or result.error:
+            session["_message"] = result.message
+            return
+
+    _set_prompt_message(session, render_flag_skill_compact(skill))
 
 
 @_register_handler("quit")

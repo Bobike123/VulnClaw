@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 
 def detect_flag_claim(output: str) -> Optional[str]:
@@ -22,7 +26,7 @@ def detect_flag_claim(output: str) -> Optional[str]:
     return None
 
 
-def update_ctf_state(agent, response_text: str, result_should_continue: bool) -> bool:
+def update_ctf_state(agent: AgentContext, response_text: str, result_should_continue: bool) -> bool:
     """Update flag claim/verification state and return should_continue."""
     if agent.runtime.claimed_flag and not agent.runtime.flag_verified:
         verification_markers = [

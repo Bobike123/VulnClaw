@@ -6,7 +6,11 @@ import asyncio
 import inspect
 import json
 import sys
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 from vulnclaw.agent.token_counter import estimate_tokens, truncate_messages
 from vulnclaw.agent.tool_call_manager import (
@@ -17,7 +21,7 @@ from vulnclaw.agent.tool_call_manager import (
 _CONTEXT_USABLE_RATIO = 0.9
 
 
-def _fit_context_window(agent: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _fit_context_window(agent: AgentContext, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Truncate messages to fit the configured context window (90% usable budget)."""
     llm = getattr(agent, "config", None)
     llm = getattr(llm, "llm", None) if llm is not None else None
@@ -113,7 +117,7 @@ def _is_openai_reasoning_model(provider: str, model: str) -> bool:
 
 
 def build_chat_completion_kwargs(
-    agent: Any,
+    agent: AgentContext,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None = None,
     *,
@@ -155,7 +159,7 @@ def build_chat_completion_kwargs(
 
 
 async def _call_with_persistent_retries(
-    agent: Any, request_fn, stage_label: str
+    agent: AgentContext, request_fn, stage_label: str
 ) -> tuple[Any, int]:
     """Keep retrying retriable LLM calls until success or manual interruption.
 
@@ -256,7 +260,7 @@ def _format_tool_results_fallback(
 
 
 async def call_llm(
-    agent: Any,
+    agent: AgentContext,
     system_prompt: str,
     *,
     stream_sink: Optional["StreamSink"] = None,
@@ -285,7 +289,7 @@ async def call_llm(
 
 
 async def call_llm_auto(
-    agent: Any,
+    agent: AgentContext,
     system_prompt: str,
     round_context: str,
     *,
@@ -550,7 +554,7 @@ def _assemble_tool_calls(tool_calls_chunks: list[dict]) -> list[Any]:
 
 
 async def call_llm_stream(
-    agent: Any,
+    agent: AgentContext,
     system_prompt: str,
     stream_sink: Optional["StreamSink"] = None,
 ) -> str:
@@ -664,7 +668,7 @@ async def call_llm_stream(
 
 
 async def call_llm_auto_stream(
-    agent: Any,
+    agent: AgentContext,
     system_prompt: str,
     round_context: str,
     stream_sink: Optional["StreamSink"] = None,

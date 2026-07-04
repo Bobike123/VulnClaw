@@ -6,13 +6,17 @@ import asyncio
 import json
 import re
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 # Default concurrency cap used when the agent config does not specify one.
 DEFAULT_TOOL_MAX_CONCURRENT = 5
 
 
-async def handle_tool_calls(agent: Any, message: Any) -> str:
+async def handle_tool_calls(agent: AgentContext, message: Any) -> str:
     """Handle tool calls from the LLM response (legacy single-turn)."""
     results: list[str] = []
     # [修改] 2026-06-10 Nyaecho - 修复 tool_calls 属性访问问题，使用 getattr 防止 AttributeError
@@ -25,7 +29,7 @@ async def handle_tool_calls(agent: Any, message: Any) -> str:
 
 
 async def handle_tool_calls_with_results(
-    agent: Any, message: Any
+    agent: AgentContext, message: Any
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Handle tool calls with deduplication and rate limiting."""
     max_calls_per_round = 10
@@ -74,7 +78,7 @@ async def handle_tool_calls_with_results(
     return results, skipped_info
 
 
-def _resolve_parallel_settings(agent: Any) -> tuple[bool, int]:
+def _resolve_parallel_settings(agent: AgentContext) -> tuple[bool, int]:
     """Read tool parallelization settings from the agent config with safe defaults."""
     safety = getattr(getattr(agent, "config", None), "safety", None)
     if safety is None:
@@ -87,7 +91,7 @@ def _resolve_parallel_settings(agent: Any) -> tuple[bool, int]:
 
 
 async def _execute_parallel(
-    agent: Any, to_execute: list[dict[str, Any]], max_concurrent: int
+    agent: AgentContext, to_execute: list[dict[str, Any]], max_concurrent: int
 ) -> list[dict[str, Any] | None]:
     """Run independent tool calls concurrently, capped by a semaphore.
 
@@ -123,7 +127,7 @@ def _extract_structured_content(tool_result: Any) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-async def _execute_single(agent: Any, item: dict[str, Any]) -> dict[str, Any] | None:
+async def _execute_single(agent: AgentContext, item: dict[str, Any]) -> dict[str, Any] | None:
     """Execute one tool call with isolated error handling.
 
     Returns a result dict on success, or ``None`` when the call raised — matching

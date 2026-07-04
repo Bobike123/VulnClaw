@@ -20,7 +20,11 @@ import json
 import re
 import socket
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 from urllib.parse import urljoin, urlparse
 
 from vulnclaw.agent.builtin_tools import enforce_host_path_constraints
@@ -101,7 +105,7 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
-def _get_recon_cfg(agent: Any) -> Any:
+def _get_recon_cfg(agent: AgentContext) -> Any:
     from vulnclaw.config.schema import ReconConfig
 
     cfg = getattr(getattr(agent, "config", None), "recon", None)
@@ -297,7 +301,7 @@ def _make_client(cfg: Any):
     return httpx.AsyncClient(verify=False, timeout=cfg.http_timeout, follow_redirects=True)
 
 
-async def execute_space_search(agent: Any, args: dict[str, Any]) -> str:
+async def execute_space_search(agent: AgentContext, args: dict[str, Any]) -> str:
     """统一空间测绘查询。engine ∈ {fofa,hunter,quake,shodan,zoomeye,zerozone,all}。"""
     cfg = _get_recon_cfg(agent)
     engine = str(args.get("engine", "fofa") or "fofa").strip().lower()
@@ -350,7 +354,7 @@ _SUBDOMAIN_BRUTE = (
 )
 
 
-async def execute_subdomain_enum(agent: Any, args: dict[str, Any]) -> str:
+async def execute_subdomain_enum(agent: AgentContext, args: dict[str, Any]) -> str:
     """子域名枚举：空间测绘被动聚合 + 可选小字典 DNS 爆破。"""
     cfg = _get_recon_cfg(agent)
     domain = str(args.get("domain", "") or "").strip().lower()
@@ -493,7 +497,7 @@ def extract_from_js(content: str, base_host: str = "") -> dict[str, list[str]]:
     }
 
 
-async def execute_js_recon(agent: Any, args: dict[str, Any]) -> str:
+async def execute_js_recon(agent: AgentContext, args: dict[str, Any]) -> str:
     """抓取目标页面及其引用的 JS 文件，提取端点 / 域名 / 密钥。"""
     cfg = _get_recon_cfg(agent)
     url = str(args.get("url", "") or "").strip()
@@ -712,7 +716,7 @@ async def _probe_endpoints(
     return results
 
 
-async def execute_unauth_test(agent: Any, args: dict[str, Any]) -> str:
+async def execute_unauth_test(agent: AgentContext, args: dict[str, Any]) -> str:
     """对一批接口逐个做未授权访问探测（仅安全 GET，跳过破坏性接口）。"""
     cfg = _get_recon_cfg(agent)
     base = str(args.get("base_url") or args.get("url") or "").strip()
@@ -776,7 +780,7 @@ def _load_wordlist(cfg: Any) -> list[str]:
 _HIT_CODES = {200, 201, 204, 301, 302, 307, 401, 403, 405, 500}
 
 
-async def execute_dir_enum(agent: Any, args: dict[str, Any]) -> str:
+async def execute_dir_enum(agent: AgentContext, args: dict[str, Any]) -> str:
     """目录枚举：并发字典爆破，带 404 基线 / 全局伪装识别与状态码过滤。"""
     cfg = _get_recon_cfg(agent)
     base = str(args.get("url", "") or "").strip()

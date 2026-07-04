@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 from vulnclaw.agent.constraint_policy import validate_phase_transition
 from vulnclaw.agent.context import PentestPhase
@@ -21,11 +25,11 @@ from vulnclaw.agent.runtime_state import AgentResult, PersistentCycleResult
 RECON_MIN_ROUNDS = 8
 
 
-def _reasoning_enabled(agent: Any) -> bool:
+def _reasoning_enabled(agent: AgentContext) -> bool:
     return getattr(getattr(agent.config, "session", None), "reasoning_state_enabled", True)
 
 
-def _sync_reasoning_path(agent: Any, path_name: str, *, success: bool) -> None:
+def _sync_reasoning_path(agent: AgentContext, path_name: str, *, success: bool) -> None:
     """把识别到的攻击路径落进结构化推理状态，并刷新优先级。"""
     if not path_name or not _reasoning_enabled(agent):
         return
@@ -43,7 +47,7 @@ def _sync_reasoning_path(agent: Any, path_name: str, *, success: bool) -> None:
     reasoning.auto_prioritize()
 
 
-def _sync_reasoning_constraint(agent: Any, path_name: str, category: FailureCategory) -> None:
+def _sync_reasoning_constraint(agent: AgentContext, path_name: str, category: FailureCategory) -> None:
     """把识别到的障碍（WAF/过滤等）落进结构化推理状态，描述保持稳定以便去重。"""
     if not _reasoning_enabled(agent):
         return
@@ -65,7 +69,7 @@ def _sync_reasoning_constraint(agent: Any, path_name: str, category: FailureCate
     )
 
 
-def _configure_reflexion(agent: Any) -> None:
+def _configure_reflexion(agent: AgentContext) -> None:
     reflexion = getattr(agent.runtime, "reflexion", None)
     session = getattr(agent.config, "session", None)
     if not reflexion or not session:
@@ -81,7 +85,7 @@ def _configure_reflexion(agent: Any) -> None:
 
 
 async def auto_pentest(
-    agent: Any,
+    agent: AgentContext,
     user_input: str,
     target: str | None = None,
     max_rounds: int = 15,
@@ -286,7 +290,7 @@ async def auto_pentest(
 
 
 async def persistent_pentest(
-    agent: Any,
+    agent: AgentContext,
     user_input: str,
     target: str | None = None,
     rounds_per_cycle: int = 100,

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 
 from vulnclaw.kb.retriever import KnowledgeRetriever, RetrieverStatus
 
 logger = logging.getLogger(__name__)
 
 
-def _retriever_for(agent) -> Optional[KnowledgeRetriever]:
+def _retriever_for(agent: AgentContext) -> Optional[KnowledgeRetriever]:
     """Return the agent's KB retriever, lazily initializing it once.
 
     Returns None when the retriever cannot be constructed at all, so callers
@@ -27,7 +31,7 @@ def _retriever_for(agent) -> Optional[KnowledgeRetriever]:
     return agent._kb_retriever
 
 
-def build_kb_context(agent, user_input: Optional[str] = None) -> str:
+def build_kb_context(agent: AgentContext, user_input: Optional[str] = None) -> str:
     """Build knowledge-base context for prompt injection.
 
     Results are cached per agent for identical queries within a session so the

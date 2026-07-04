@@ -12,7 +12,11 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.agent_context import AgentContext
+
 from urllib.parse import urlparse
 
 from vulnclaw.agent.constraint_policy import validate_tool_action
@@ -84,7 +88,7 @@ LAB_MODE_PATTERNS: list[str] = [
 ]
 
 
-async def execute_mcp_tool(agent: Any, tool_name: str, args: dict[str, Any]) -> str:
+async def execute_mcp_tool(agent: AgentContext, tool_name: str, args: dict[str, Any]) -> str:
     """Execute a tool call via MCP manager or built-in tools."""
     session = getattr(agent, "session_state", None)
     constraints = getattr(session, "task_constraints", None)
@@ -199,7 +203,7 @@ async def execute_mcp_tool(agent: Any, tool_name: str, args: dict[str, Any]) -> 
         return f"[!] 工具执行错误 ({tool_name}): {e}"
 
 
-def enforce_port_constraints(agent: Any, ports: list[int], *, target: str = "") -> str | None:
+def enforce_port_constraints(agent: AgentContext, ports: list[int], *, target: str = "") -> str | None:
     """Return a user-facing violation message when requested ports are out of scope."""
     session = getattr(agent, "session_state", None)
     constraints = getattr(session, "task_constraints", None)
@@ -224,7 +228,7 @@ def enforce_port_constraints(agent: Any, ports: list[int], *, target: str = "") 
 
 
 def enforce_host_path_constraints(
-    agent: Any, *, host: str = "", path: str = "", target: str = ""
+    agent: AgentContext, *, host: str = "", path: str = "", target: str = ""
 ) -> str | None:
     """Return a user-facing violation when host/path are out of scope."""
     session = getattr(agent, "session_state", None)
@@ -679,7 +683,7 @@ def build_openai_tools(mcp_manager: Any) -> list[dict[str, Any]]:
     return tools
 
 
-async def execute_nmap(agent: Any, args: dict[str, Any]) -> str:
+async def execute_nmap(agent: AgentContext, args: dict[str, Any]) -> str:
     target = args.get("target", "").strip()
     if not target:
         return "[!] nmap_scan 需要 target 参数（目标 IP 或域名）"
@@ -918,7 +922,7 @@ def parse_nmap_xml(xml_output: str, target: str) -> str:
     return "\n".join(lines) or f"nmap 扫描完成（无输出）: {target}"
 
 
-def _resolve_python_execute_mode(agent: Any) -> str:
+def _resolve_python_execute_mode(agent: AgentContext) -> str:
     safety = getattr(agent.config, "safety", None)
     if safety is None:
         return "trusted-local"
@@ -940,7 +944,7 @@ def _validate_python_execute_mode(mode: str, code: str) -> str | None:
 
 
 def _write_python_audit(
-    agent: Any,
+    agent: AgentContext,
     *,
     purpose: str,
     code: str,
@@ -974,7 +978,7 @@ def _write_python_audit(
         return
 
 
-async def execute_python(agent: Any, args: dict[str, Any]) -> str:
+async def execute_python(agent: AgentContext, args: dict[str, Any]) -> str:
     code = args.get("code", "")
     purpose = args.get("purpose", "")
     if not code.strip():
@@ -1136,7 +1140,7 @@ async def execute_python(agent: Any, args: dict[str, Any]) -> str:
 
 
 def _sync_cookies_to_shared_jar(
-    agent: Any, cookies: list[tuple[str, str, str, str]]
+    agent: AgentContext, cookies: list[tuple[str, str, str, str]]
 ) -> None:
     """Copy session cookies into the agent's shared _fetch_cookies jar.
 
@@ -1163,7 +1167,7 @@ def _sync_cookies_to_shared_jar(
         pass
 
 
-async def execute_brute_force(agent: Any, args: dict[str, Any]) -> str:
+async def execute_brute_force(agent: AgentContext, args: dict[str, Any]) -> str:
     """Execute a login brute-force with automatic CSRF/session management.
 
     Handles the full flow in one call:
