@@ -226,7 +226,9 @@ class MCPLifecycleManager:
             msg = str(context.get("message", "")).lower()
             if msg and any(kw in msg for kw in _BENIGN_SHUTDOWN_KEYWORDS):
                 return
-            if "async_generator" in msg and "closing" in msg:
+            # CPython's shutdown_asyncgens reports failed generator finalization
+            # as "an error occurred during closing of asynchronous generator".
+            if "closing" in msg and ("async_generator" in msg or "asynchronous generator" in msg):
                 return
             if original_handler is not None:
                 original_handler(loop, context)
@@ -729,6 +731,14 @@ class MCPLifecycleManager:
 
     async def _get_or_create_persistent_stdio_session(self, server_name: str) -> Any:
         """Create and cache a persistent stdio-backed MCP session for the current loop."""
+        # stdio_client is an anyio TaskGroup-based async generator. When the
+        # per-request event loop tears down (asyncio.run -> shutdown_asyncgens),
+        # the still-open generator is finalized from a different task than the one
+        # that entered its cancel scope, raising a benign cross-task RuntimeError.
+        # Install the handler on *this* loop so that noise is suppressed (the SSE
+        # path already does this; stdio must too).
+        self._install_loop_exception_handler()
+
         client_meta = self._mcp_clients.get(server_name)
         current_loop = asyncio.get_running_loop()
 
@@ -805,6 +815,10 @@ class MCPLifecycleManager:
         """
         if streamablehttp_client is None or ClientSession is None:
             raise RuntimeError("MCP Python SDK is not installed")
+        # Suppress the benign cross-task cancel-scope error emitted when this
+        # loop's shutdown_asyncgens finalizes the transport generator (see the
+        # stdio path for the full rationale).
+        self._install_loop_exception_handler()
 
         client_meta = self._mcp_clients.get(server_name)
         current_loop = asyncio.get_running_loop()

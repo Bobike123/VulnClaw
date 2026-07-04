@@ -562,6 +562,104 @@ class TestSseMcp:
         assert m.registry.get_all_servers()["burp"].running is False
 
 
+# ── stdio cross-task shutdown noise (issue #81) ──────────────────────
+
+# A minimal real stdio MCP server. Run via `python -c <src>` so the test needs
+# no external package manager (npx/uvx) — only the `mcp` package itself.
+_ECHO_STDIO_SERVER_SRC = """
+import anyio
+from mcp.server.lowlevel import Server
+from mcp.server.stdio import stdio_server
+import mcp.types as types
+
+app = Server("echo")
+
+@app.list_tools()
+async def list_tools():
+    return [types.Tool(name="echo", description="echo",
+                       inputSchema={"type": "object",
+                                    "properties": {"text": {"type": "string"}}})]
+
+@app.call_tool()
+async def call_tool(name, arguments):
+    return [types.TextContent(type="text", text=str(arguments))]
+
+async def main():
+    async with stdio_server() as (r, w):
+        await app.run(r, w, app.create_initialization_options())
+
+anyio.run(main)
+"""
+
+
+def test_persistent_stdio_shutdown_has_no_cross_task_error():
+    """Regression for issue #81.
+
+    A persistent stdio session opened inside a per-request ``asyncio.run`` loop
+    is finalized by that loop's ``shutdown_asyncgens`` from a different task than
+    the one that entered its anyio cancel scope, raising
+    ``RuntimeError: Attempted to exit cancel scope in a different task``. The
+    lifecycle manager must install its benign-shutdown exception handler on the
+    loop so this noise never reaches the user.
+
+    The failure surfaces through asyncio's default exception handler, which logs
+    via the ``asyncio`` logger, so we capture that logger directly rather than a
+    stream (pytest routes logging away from the raw stderr fd).
+    """
+    import logging
+    import sys
+
+    pytest.importorskip("mcp")
+
+    records: list[logging.LogRecord] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Collector()
+    asyncio_logger = logging.getLogger("asyncio")
+    asyncio_logger.addHandler(handler)
+
+    cfg = VulnClawConfig()
+    cfg.mcp.servers["echo"] = MCPServerConfig.model_validate(
+        {
+            "name": "echo",
+            "enabled": True,
+            "priority": 0,
+            "description": "echo",
+            "transport": {
+                "type": "stdio",
+                "command": sys.executable,
+                "args": ["-c", _ECHO_STDIO_SERVER_SRC],
+            },
+        }
+    )
+    m = MCPLifecycleManager(cfg)
+    m.registry.register_server("echo")
+    m._mcp_clients["echo"] = {"kind": "stdio-probe", "config": cfg.mcp.servers["echo"]}
+
+    async def _one_request():
+        # Mimic one REPL question: a real stdio session is created lazily.
+        session = await m._get_or_create_persistent_stdio_session("echo")
+        await session.call_tool("echo", arguments={"text": "hi"})
+
+    # A fresh event loop per request is exactly what the REPL does; its teardown
+    # (shutdown_asyncgens) is where the cross-task error used to surface.
+    try:
+        asyncio.run(_one_request())
+    finally:
+        asyncio_logger.removeHandler(handler)
+
+    blob = "\n".join(
+        r.getMessage() + "\n" + (r.exc_text or "")
+        + ("" if r.exc_info is None else str(r.exc_info[1]))
+        for r in records
+    )
+    assert "Attempted to exit cancel scope" not in blob, blob
+    assert "asynchronous generator" not in blob, blob
+
+
 def test_smoke_event_loop_isolation():
     # Each async test gets its own loop under asyncio_mode=auto; ensure the
     # manager does not capture a stale loop at construction time.
