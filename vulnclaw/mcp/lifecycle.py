@@ -1615,7 +1615,12 @@ class MCPLifecycleManager:
             )
 
     async def _call_fetch(self, args: dict) -> str:
-        """Execute a fetch request using httpx."""
+        """Execute a fetch request using httpx.
+
+        Reuses and updates the shared ``_fetch_cookies`` jar so that a
+        session established elsewhere (e.g. ``brute_force_login``) carries
+        over to subsequent fetch calls against the same target.
+        """
         try:
             import httpx
 
@@ -1624,13 +1629,19 @@ class MCPLifecycleManager:
             headers = args.get("headers", {})
             body = args.get("body")
 
-            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+            jar = getattr(self, "_fetch_cookies", None)
+            if jar is None:
+                jar = httpx.Cookies()
+                self._fetch_cookies = jar
+
+            async with httpx.AsyncClient(verify=False, timeout=30.0, cookies=jar) as client:
                 response = await client.request(
                     method=method,
                     url=url,
                     headers=headers,
                     content=body,
                 )
+                jar.extract_cookies(response)
 
             result = f"Status: {response.status_code}\n"
             result += f"Headers: {dict(response.headers)}\n"

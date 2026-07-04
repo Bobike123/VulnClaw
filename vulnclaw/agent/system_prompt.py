@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vulnclaw.agent.prompts import AUTO_PENTEST_INSTRUCTION, RECON_INSTRUCTION, build_system_prompt
+
+if TYPE_CHECKING:
+    from vulnclaw.agent.context import TaskConstraints
 
 
 def build_dynamic_system_prompt(
@@ -17,6 +20,7 @@ def build_dynamic_system_prompt(
     auto_mode: bool,
     user_input: Optional[str],
     kb_context: str,
+    task_constraints: Optional["TaskConstraints"] = None,
 ) -> str:
     """Build the dynamic system prompt for one turn."""
     prompt = build_system_prompt(
@@ -83,5 +87,10 @@ def build_dynamic_system_prompt(
 
     if kb_context:
         prompt += "\n\n" + kb_context
+
+    if task_constraints is not None:
+        constraints_block = task_constraints.to_prompt_block()
+        if constraints_block:
+            prompt += "\n\n" + constraints_block
 
     return prompt

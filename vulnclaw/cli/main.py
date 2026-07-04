@@ -896,6 +896,7 @@ def _generate_report_for_target(
     *,
     current_session=None,
     report_format: str = "markdown",
+    output_path: Optional[str] = None,
 ) -> str:
     """Generate a report for a target using the best available source data."""
     from vulnclaw.agent.context import SessionState
@@ -905,16 +906,16 @@ def _generate_report_for_target(
     if current_session is not None and (
         current_session.findings or current_session.executed_steps or current_session.notes
     ):
-        path = generate_report(current_session, report_format=report_format)
+        path = generate_report(current_session, output_path, report_format=report_format)
         return str(path)
 
     state = load_target_state(target)
     if state:
-        path = generate_report_from_target_state(state)
+        path = generate_report_from_target_state(state, output_path=output_path)
         return str(path)
 
     session = SessionState(target=target)
-    path = generate_report(session, report_format=report_format)
+    path = generate_report(session, output_path, report_format=report_format)
     return str(path)
 
 
@@ -1123,6 +1124,9 @@ def run(
     else:
         total_findings = orchestrated.summary["findings_count"]
         console.print(_("cli.pentest_finished", findings=total_findings))
+
+    report_path = _generate_report_for_target(target, output_path=output)
+    console.print(f"[+] Report generated: {report_path}")
 
 
 @app.command()

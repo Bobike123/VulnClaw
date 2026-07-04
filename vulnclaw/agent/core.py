@@ -371,6 +371,7 @@ class AgentCore:
             auto_mode=auto_mode,
             user_input=user_input,
             kb_context=kb_context,
+            task_constraints=self.context.state.task_constraints,
         )
 
     def _get_active_skill_context(self, user_input: Optional[str] = None) -> Optional[str]:

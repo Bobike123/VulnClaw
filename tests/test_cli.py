@@ -320,6 +320,66 @@ class TestCLI:
         assert result.exit_code == 0
         assert called == [("run", "https://example.com")]
 
+    def test_run_generates_report_after_completion(self, runner, monkeypatch):
+        import vulnclaw.cli.main as cli_main
+        from vulnclaw.cli.main import app
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        config.llm.api_key = "test-key"
+        monkeypatch.setattr(cli_main, "load_config", lambda: config)
+
+        async def fake_orchestrated(*, command, target, resume, snapshot, runner):
+            return type("RunResult", (), {"summary": {"findings_count": 2}})()
+
+        monkeypatch.setattr(cli_main, "_run_cli_orchestrated_task", fake_orchestrated)
+
+        report_calls = []
+
+        def fake_generate_report(target, **kwargs):
+            report_calls.append((target, kwargs))
+            return "/tmp/vulnclaw-output/report.md"
+
+        monkeypatch.setattr(cli_main, "_generate_report_for_target", fake_generate_report)
+
+        result = runner.invoke(app, ["run", "https://example.com"])
+
+        assert result.exit_code == 0
+        assert report_calls == [("https://example.com", {"output_path": None})]
+        assert "report.md" in result.output
+
+    def test_run_passes_output_flag_to_report_generation(self, runner, monkeypatch):
+        import vulnclaw.cli.main as cli_main
+        from vulnclaw.cli.main import app
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        config.llm.api_key = "test-key"
+        monkeypatch.setattr(cli_main, "load_config", lambda: config)
+
+        async def fake_orchestrated(*, command, target, resume, snapshot, runner):
+            return type("RunResult", (), {"summary": {"findings_count": 0}})()
+
+        monkeypatch.setattr(cli_main, "_run_cli_orchestrated_task", fake_orchestrated)
+
+        report_calls = []
+
+        def fake_generate_report(target, **kwargs):
+            report_calls.append((target, kwargs))
+            return "/custom/path/report.md"
+
+        monkeypatch.setattr(cli_main, "_generate_report_for_target", fake_generate_report)
+
+        result = runner.invoke(
+            app, ["run", "https://example.com", "--output", "/custom/path/report.md"]
+        )
+
+        assert result.exit_code == 0
+        assert report_calls == [
+            ("https://example.com", {"output_path": "/custom/path/report.md"})
+        ]
+        assert "/custom/path/report.md" in result.output
+
     def test_run_cli_constraints_are_appended_to_prompt(self, runner, monkeypatch):
         import vulnclaw.cli.main as cli_main
         from vulnclaw.cli.main import app
