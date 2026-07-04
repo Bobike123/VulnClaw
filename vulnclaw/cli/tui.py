@@ -738,6 +738,22 @@ def _resolve_repl_command(name: str) -> str:
     return key if key in REPL_COMMANDS else ""
 
 
+def skill_display_description(skill: dict[str, Any]) -> str:
+    """Localized description for a skill's palette / help entry.
+
+    Skill frontmatter descriptions are authored in Chinese. When a localized
+    override exists in the i18n catalog for the active language (key
+    ``skill.<name>.description``, e.g. the English strings in ``en.json``),
+    prefer it; otherwise fall back to the frontmatter description.
+    """
+    name = skill.get("name", "")
+    key = f"skill.{name}.description"
+    localized = _(key)
+    if localized and localized != key:
+        return localized
+    return skill.get("description", "") or f"{skill.get('type', 'skill')} skill"
+
+
 def list_skill_palette_entries(prefix: str = "") -> list[tuple[str, str]]:
     """Return palette entries for available skills only (no built-in commands).
 
@@ -749,7 +765,7 @@ def list_skill_palette_entries(prefix: str = "") -> list[tuple[str, str]]:
         name = skill["name"]
         if normalized and not name.lower().startswith(normalized):
             continue
-        description = skill.get("description", "") or f"{skill.get('type', 'skill')} skill"
+        description = skill_display_description(skill)
         refs = skill.get("references", "0")
         entries.append((name, f"Skill · {description} · {refs} refs"))
     return entries
@@ -1027,7 +1043,7 @@ def render_slash_skill_help(skill: dict[str, Any]) -> str:
     refs = skill.get("references", [])
     lines = [
         f"/{skill['name']} skill",
-        skill.get("description", "") or "No description available.",
+        skill_display_description(skill) or "No description available.",
         f"Format: {skill.get('format', 'unknown')}",
     ]
     if refs:
