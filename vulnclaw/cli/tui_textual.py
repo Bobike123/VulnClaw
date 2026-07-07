@@ -25,6 +25,7 @@ from textual.widgets import Input, ListItem, ListView, RichLog, Static
 import vulnclaw.cli.tui as _tui
 
 # [新增] 2026-06-10 Nyaecho - 自然语言驱动 / 响应式侧边栏: 新增颜色常量和动作辅助函数导入
+# [修改] 2026-07-08 Nyaecho - 修改原因：新增 @ skill 引用相关函数导入
 from vulnclaw.cli.tui import (
     C_ACCENT,
     C_ERROR,
@@ -41,8 +42,11 @@ from vulnclaw.cli.tui import (
     _effective_block_actions,
     _parse_action_csv,
     _parse_optional_port,
+    build_at_palette_entries,
     build_dashboard,
     build_runtime_diagnostic,
+    expand_at_skills,
+    find_at_context,
     rebuild_translations,
 )
 from vulnclaw.config.settings import (
@@ -649,7 +653,8 @@ def _h_diag(session: dict[str, Any], args: str) -> str | None:
 @_register_handler("config")
 @_register_handler("cfg")
 def _h_config(session: dict[str, Any], args: str) -> str | None:
-    # [修改] 重构 config 流程: 选择提供商 → 输入 API Key → 获取模型列表 → 选择/输入模型
+    # [修改] 2026-07-08 Nyaecho - 修改原因：custom 提供商新增 Base URL 输入步骤
+    # 流程：选择提供商 → (custom) 输入 Base URL → 输入 API Key → 获取模型列表 → 选择/输入模型
     config = session["config"]
     providers = [item["provider"] for item in list_providers()]
     cur = config.llm.provider
@@ -659,7 +664,20 @@ def _h_config(session: dict[str, Any], args: str) -> str | None:
         if v and v != cur:
             config = apply_provider_preset(config, v)
             session["config"] = config
-        # 流程变更：选择提供商后先输入 API Key
+        # custom 提供商需要先输入 Base URL
+        if v == "custom":
+            _set_prompt(session, "input",
+                       _("tui.prompt_enter_baseurl", url=session["config"].llm.base_url or ""),
+                       on_baseurl)
+        else:
+            # 非 custom：直接输入 API Key
+            ks = _("tui.api_key_configured") if session["config"].llm.api_key else _("tui.api_key_not_configured")
+            _set_prompt(session, "input", _("tui.prompt_enter_apikey", status=ks), on_apikey)
+
+    def on_baseurl(v):
+        if v:
+            session["config"].llm.base_url = v.strip()
+        # 输入完 Base URL 后继续输入 API Key
         ks = _("tui.api_key_configured") if session["config"].llm.api_key else _("tui.api_key_not_configured")
         _set_prompt(session, "input", _("tui.prompt_enter_apikey", status=ks), on_apikey)
 
@@ -668,7 +686,7 @@ def _h_config(session: dict[str, Any], args: str) -> str | None:
             session["config"].llm.api_key = v.strip()
         base_url = session["config"].llm.base_url
         api_key = session["config"].llm.api_key
-        # custom 提供商或缺少 base_url 时跳过获取，直接手动输入
+        # 缺少 base_url 或 api_key 时跳过获取，直接手动输入
         if not base_url or not api_key:
             _set_prompt(session, "input", _("tui.prompt_enter_model_fallback", model=session["config"].llm.model), on_model_input, session["config"].llm.model)
             return
@@ -831,10 +849,12 @@ class DashboardScreen(Screen):
 
     # ── Input events ──
 
+    # [修改] 2026-07-08 Nyaecho - 修改原因：新增任意位置 @ skill 引用补全支持
     def on_input_changed(self, event: Input.Changed) -> None:
         if self._completing:
             return
         text = event.value or ""
+        cursor = event.input.cursor_position
         palette = self.query_one(CommandPalette)
         if text.startswith("/."):
             word = text[2:]
@@ -851,6 +871,16 @@ class DashboardScreen(Screen):
                     completion_prefix="/",
                 )
                 return
+        # 检测任意位置的 @
+        ctx = find_at_context(text, cursor)
+        if ctx is not None:
+            _, word = ctx
+            palette.show_commands(
+                word,
+                entries=build_at_palette_entries(word),
+                completion_prefix="@",
+            )
+            return
         palette.hide_palette()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -898,15 +928,16 @@ class DashboardScreen(Screen):
                     self.app.recompose()
                     return
         elif text:
-            # [新增] 2026-06-10 Nyaecho - TUI自然语言驱动: 无斜杠前缀的纯文本直接作为NL prompt启动
+            # [修改] 2026-07-08 Nyaecho - 修改原因：提交时展开 @ skill 引用为完整 prompt
             state = self._s["state"]
             if not state.target.strip():
                 self._set_bar(_("tui.please_set_target"), C_WARNING)
             else:
+                expanded = expand_at_skills(text)
                 self._s["_launch"] = False
-                self._s["_nl_history"] = text
+                self._s["_nl_history"] = text  # 保留原始输入用于 /continue
                 draft = _draft_from_state(state)
-                self._start_execution(draft, nl_text=text)
+                self._start_execution(draft, nl_text=expanded)
                 return
 
         self._refresh_dash()

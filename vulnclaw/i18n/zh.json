@@ -257,6 +257,7 @@
   "tui.prompt_select_provider": "选择提供商 (当前: {provider}):",
   "tui.prompt_enter_model": "模型 (当前: {model}):",
   "tui.prompt_enter_apikey": "API Key ({status}, 回车保持):",
+  "tui.prompt_enter_baseurl": "Base URL（当前: {url}）:",
 
   "tui.error_invalid_port": "端口必须是 1-65535 之间的数字",
   "tui.no_previous_execution": "没有可继续的上次执行",
