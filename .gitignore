@@ -73,8 +73,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# AI tooling (local)
-.claude/
+# AI tooling (local) — but keep .claude/skills/ tracked (symlinks into .agents/skills/)
+.claude/*
+!.claude/skills/
 CLAUDE.md
 
 # Local docs / local-only artifacts
