@@ -411,7 +411,8 @@ def build_dashboard(config, state: TuiState) -> Group:
     footer_body.append("┃  ", style=C_MUTED)
     footer_body.append(command_preview, style=C_MUTED)
     footer_body.append("\n\n")
-    footer_body.append(_("tui.cli_note"), style=C_MUTED)
+    # [隐藏] 隐藏一个调试时文字提示
+    #footer_body.append(_("tui.cli_note"), style=C_MUTED)
 
     footer = Panel(
         footer_body,

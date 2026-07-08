@@ -105,7 +105,7 @@
   "cli.partial_report": "[+] Partial report: {path}",
   "cli.pentest_finished": "\n[+] Pentest finished with {findings} findings",
   "tui.title": "VulnClaw TUI Workbench",
-  "tui.desc": "Terminal graphical entry for authorized security testing: Confirm target and boundaries before starting.",
+  "tui.desc": "Terminal tool for authorized security testing: Confirm target and boundaries before starting.",
   "tui.mode_quick": "Quick Scan",
   "tui.mode_quick_desc": "Only recon and basic risk identification. Suitable for first-time assessment.",
   "tui.mode_standard": "Standard Check",

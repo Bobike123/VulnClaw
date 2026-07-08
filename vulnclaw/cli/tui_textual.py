@@ -783,11 +783,14 @@ def _h_continue(session: dict[str, Any], args: str) -> str | None:
 
 class DashboardScreen(Screen):
 
+    # [修改] 2026-07-08 Nyaecho - 修改原因：添加上下键优先级绑定，用于 CommandPalette 导航
     BINDINGS = [
         Binding("ctrl+c", "quit_app", "Quit", show=False),
         Binding("tab", "palette_tab", "", show=False),
         Binding("escape", "palette_esc", "", show=False),
         Binding("ctrl+shift+c", "copy_output", "Copy log", show=False),
+        Binding("up", "cursor_up", "", show=False, priority=True),
+        Binding("down", "cursor_down", "", show=False, priority=True),
     ]
 
     def __init__(self, session: dict[str, Any]):
@@ -829,6 +832,47 @@ class DashboardScreen(Screen):
             state.mode = "standard"
         dash = build_dashboard(self._s["config"], state)
         self.query_one("#dashboard").update(dash)
+
+    # [新增] 2026-07-08 Nyaecho - 修改原因：支持上下键导航 CommandPalette 和 SecondaryPopup
+    def action_cursor_up(self) -> None:
+        """Move highlight up in CommandPalette or SecondaryPopup."""
+        # 优先处理 SecondaryPopup 中的 ListView
+        popup = self.query_one(SecondaryPopup)
+        if popup.has_class("open"):
+            try:
+                lv = popup.query_one("#popup-list", ListView)
+                if lv.index is not None and lv.index > 0:
+                    lv.index -= 1
+            except Exception:
+                pass
+            return
+        # 处理 CommandPalette
+        p = self.query_one(CommandPalette)
+        if p.has_class("open") and p._commands:
+            if p.index is None:
+                p.index = 0
+            elif p.index > 0:
+                p.index -= 1
+
+    def action_cursor_down(self) -> None:
+        """Move highlight down in CommandPalette or SecondaryPopup."""
+        # 优先处理 SecondaryPopup 中的 ListView
+        popup = self.query_one(SecondaryPopup)
+        if popup.has_class("open"):
+            try:
+                lv = popup.query_one("#popup-list", ListView)
+                if lv.index is not None and lv.index < len(lv.query_children(ListItem)) - 1:
+                    lv.index += 1
+            except Exception:
+                pass
+            return
+        # 处理 CommandPalette
+        p = self.query_one(CommandPalette)
+        if p.has_class("open") and p._commands:
+            if p.index is None:
+                p.index = 0
+            elif p.index < len(p._commands) - 1:
+                p.index += 1
 
     def _set_bar(self, text: str = "", style: str = "") -> None:
         # [修改] 2026-06-10 Nyaecho - 状态栏消息4秒自动消失: msg_id 计数器防止旧定时器错误清除新消息
@@ -887,15 +931,15 @@ class DashboardScreen(Screen):
         text = (event.value or "").strip()
         palette = self.query_one(CommandPalette)
 
-        if palette.has_class("open"):
+        # [修改] 2026-07-08 Nyaecho - 修改原因：Enter 键选择 CommandPalette 高亮项（不提交），焦点保持在输入框
+        if palette.has_class("open") and palette.selected is not None:
             cmd = palette.selected
-            if cmd:
-                self._completing = True
-                self.query_one("#cmd-input").value = palette.completion_prefix + cmd + " "
-                self.query_one("#cmd-input").action_end()
-                self._completing = False
+            self._completing = True
+            self.query_one("#cmd-input").value = palette.completion_prefix + cmd + " "
+            self.query_one("#cmd-input").action_end()
+            self._completing = False
             palette.hide_palette()
-            return
+            return  # 选择高亮项，不提交
 
         prompt = self._s.get("_prompt")
         if prompt is not None:
@@ -971,6 +1015,8 @@ class DashboardScreen(Screen):
         p = self.query_one(CommandPalette)
         if p.has_class("open"):
             p.hide_palette()
+            # [修改] 2026-07-08 Nyaecho - 修改原因：关闭 CommandPalette 后焦点回到输入框
+            self.query_one("#cmd-input").focus()
         elif self._s.get("_prompt") is not None:
             _cancel_prompt(self._s)
             self._set_bar("")
@@ -1135,16 +1181,7 @@ class DashboardScreen(Screen):
         if config:
             self._s["config"] = config
 
-    def on_key(self, event: Key) -> None:
-        p = self.query_one(CommandPalette)
-        if not p.has_class("open"):
-            return
-        if event.key == "up":
-            p.action_cursor_up()
-            event.stop()
-        elif event.key == "down":
-            p.action_cursor_down()
-            event.stop()
+    # [删除] 2026-07-08 Nyaecho - 修改原因：上下键由 Input key_bindings 处理，不再需要 on_key 拦截
 
     # ── Prompt state machine ──
 
@@ -1393,17 +1430,17 @@ CSS = """
     overflow-y: auto;
     scrollbar-size: 0 0;
     border: solid #fab283;
-    background: transparent;
+    background: $surface;
 }
 #cmd-palette.open {
     display: block;
 }
 #cmd-palette ListItem {
-    background: transparent;
+    background: $surface;
 }
 #cmd-palette ListItem.-highlight {
     color: #fab283;
-    background: transparent;
+    background: $surface-lighten-1;
 }
 #cmd-palette ListItem.-highlight Static {
     color: #fab283;
