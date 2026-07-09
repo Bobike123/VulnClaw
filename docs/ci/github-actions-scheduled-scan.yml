@@ -1,0 +1,57 @@
+# VulnClaw — scheduled full sweep
+#
+# Drop this into `.github/workflows/vulnclaw-scheduled-scan.yml`. It runs a
+# deep, full-scope, non-interactive scan on a schedule. It never breaks the
+# pipeline (--fail-on never → exit 0 regardless of findings); instead it
+# uploads the run directory and the SARIF findings file to GitHub
+# code-scanning so results show up in the Security tab.
+name: vulnclaw-scheduled-scan
+
+on:
+  schedule:
+    # 02:00 UTC every day. Adjust to taste.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  vulnclaw:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install VulnClaw
+        run: pip install vulnclaw
+
+      - name: Run VulnClaw (scheduled sweep)
+        env:
+          VULNCLAW_LLM_API_KEY: ${{ secrets.VULNCLAW_LLM_API_KEY }}
+          VULNCLAW_LLM_BASE_URL: ${{ secrets.VULNCLAW_LLM_BASE_URL }}
+          VULNCLAW_LLM_MODEL: ${{ secrets.VULNCLAW_LLM_MODEL }}
+        run: >
+          vulnclaw run "${{ vars.VULNCLAW_TARGET }}"
+          --non-interactive
+          --scan-mode deep
+          --scope-mode full
+          --fail-on never
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnclaw-run
+          path: ~/.vulnclaw/runs/
+          if-no-files-found: ignore
+
+      # findings.sarif is produced by the findings pipeline (see findings PRD).
+      - name: Upload SARIF to code-scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ~/.vulnclaw/runs/findings.sarif
+        continue-on-error: true

@@ -85,6 +85,36 @@ class TestSkillLoader:
             assert "description" in skill
             assert len(skill["description"]) > 0, f"Skill {name} has empty description"
 
+    def test_skill_requires_target_defaults_true(self):
+        """Skills without a requires_target frontmatter key default to True."""
+        from vulnclaw.skills.loader import load_skill_by_name
+
+        skill = load_skill_by_name("pentest-flow")
+        assert skill["requires_target"] is True
+
+    def test_skill_requires_target_frontmatter_override(self, tmp_path):
+        """frontmatter ``requires_target: false`` is surfaced on the skill dict."""
+        from vulnclaw.skills.loader import _parse_skill_file
+
+        skill_file = tmp_path / "self-discovering.md"
+        skill_file.write_text(
+            "---\nname: self-discovering\ndescription: reads its own target\n"
+            "requires_target: false\n---\nbody\n",
+            encoding="utf-8",
+        )
+        skill = _parse_skill_file(skill_file)
+        assert skill["requires_target"] is False
+
+    def test_skill_requires_target_ignores_non_boolean(self, tmp_path):
+        """Only an explicit boolean false opts out; falsy non-bools stay True."""
+        from vulnclaw.skills.loader import _parse_skill_file
+
+        for raw in ["requires_target:", "requires_target: 0", 'requires_target: "false"']:
+            skill_file = tmp_path / "s.md"
+            skill_file.write_text(f"---\nname: s\n{raw}\n---\nbody\n", encoding="utf-8")
+            skill = _parse_skill_file(skill_file)
+            assert skill["requires_target"] is True, raw
+
     def test_skill_format_field(self):
         """Directory-format skills should have format='directory'."""
         from vulnclaw.skills.loader import load_skill_by_name
@@ -294,10 +324,17 @@ class TestSkillDispatcher:
         skill = d.dispatch("GAARM AI应用安全测试 Prompt注入 MCP Agent 风险映射")
         assert skill["name"] == "secknowledge-skill"
 
-    def test_dispatch_default_to_pentest_flow(self):
-        """Unrecognized input should default to pentest-flow."""
+    def test_dispatch_non_security_injects_nothing(self):
+        """Unrelated, non-security text no longer auto-injects pentest-flow."""
         d = self._make_dispatcher()
         skill = d.dispatch("你好今天天气怎么样")
+        assert skill is None
+
+    def test_dispatch_generic_pentest_falls_back(self):
+        """Generic pentest-like input without specificity falls back to pentest-flow."""
+        d = self._make_dispatcher()
+        skill = d.dispatch("帮我对这个目标做一次渗透测试")
+        assert skill is not None
         assert skill["name"] == "pentest-flow"
 
     def test_dispatch_returns_dict(self):

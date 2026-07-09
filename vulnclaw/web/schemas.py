@@ -77,6 +77,15 @@ class TaskCreateRequest(BaseModel):
     target: str = Field(min_length=1, max_length=2048)
     resume: bool = True
     snapshot_id: Optional[str] = Field(default=None, max_length=160)
+    run_name: Optional[str] = Field(default=None, max_length=120)
+    resume_run_name: Optional[str] = Field(default=None, max_length=120)
+    runs_dir: Optional[str] = Field(default=None, max_length=4096)
+    additional_targets: list[str] = Field(default_factory=list, max_length=20)
+    target_type: Optional[str] = Field(default=None, max_length=32)
+    mount: bool = False
+    repair: bool = False
+    force_fresh: bool = False
+    no_import: bool = False
     options: TaskOptions = Field(default_factory=TaskOptions)
 
 
@@ -93,10 +102,19 @@ class TaskSummary(BaseModel):
     restored: bool = False
     snapshot_id: str = ""
     schema_version: int = 1
+    status: str = "completed"
+    exit_code: int = 0
+    exit_meaning: str = "completed"
+    run_name: str = ""
+    run_dir: str = ""
+    resume_command: str = ""
+    artifact_locations: dict[str, str] = Field(default_factory=dict)
     phase: Optional[str] = None
     findings_count: int = 0
     verified_count: int = 0
     pending_count: int = 0
+    candidate_count: int = 0
+    quarantined_count: int = 0
     executed_steps: int = 0
     resume_strategy: str = ""
     resume_reason: str = ""

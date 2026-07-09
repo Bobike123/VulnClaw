@@ -1,0 +1,50 @@
+# VulnClaw — PR gate scan
+#
+# Drop this into `.github/workflows/vulnclaw-pr-scan.yml` in the repo you want
+# to gate. It runs a fast, diff-scoped, non-interactive scan on every pull
+# request and blocks the merge only when VulnClaw *verifies* a finding
+# (exit code 2). Unverified candidates do not block (default --fail-on verified).
+#
+# Requires the LLM credentials to be provided as an Actions secret. VulnClaw
+# reads them from the VULNCLAW_LLM_* environment variables.
+name: vulnclaw-pr-scan
+
+on:
+  pull_request:
+
+jobs:
+  vulnclaw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch enough history for auto scope-mode to diff the PR.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install VulnClaw
+        run: pip install vulnclaw
+
+      - name: Run VulnClaw (PR gate)
+        env:
+          VULNCLAW_LLM_API_KEY: ${{ secrets.VULNCLAW_LLM_API_KEY }}
+          VULNCLAW_LLM_BASE_URL: ${{ secrets.VULNCLAW_LLM_BASE_URL }}
+          VULNCLAW_LLM_MODEL: ${{ secrets.VULNCLAW_LLM_MODEL }}
+        run: >
+          vulnclaw run "${{ github.event.pull_request.html_url }}"
+          --non-interactive
+          --scan-mode quick
+          --scope-mode auto
+          --fail-on verified
+
+      # A verified finding exits 2 and fails this step, blocking the merge.
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnclaw-run
+          path: ~/.vulnclaw/runs/
+          if-no-files-found: ignore

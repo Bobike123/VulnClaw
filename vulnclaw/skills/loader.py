@@ -170,6 +170,15 @@ def _parse_skill_file(path: Path) -> dict[str, Any]:
 
     # Parse optional frontmatter
     description = ""
+    # Whether a preset scan target is required before the skill can launch.
+    # Self-discovering skills (e.g. ``hackerone``, which reads its target from a
+    # scope link) set ``requires_target: false`` in frontmatter to launch
+    # target-less. Defaults to True so every existing skill is unchanged.
+    requires_target = True
+    # Optional typed routing metadata (see vulnclaw.skills.routing). Kept as the
+    # raw frontmatter mapping here; the resolver normalizes/validates it into a
+    # ``SkillRouting`` model so the loader stays free of routing-schema imports.
+    routing: dict[str, Any] = {}
     body = content
 
     if content.startswith("---"):
@@ -182,6 +191,15 @@ def _parse_skill_file(path: Path) -> dict[str, Any]:
                 if isinstance(frontmatter, dict):
                     description = frontmatter.get("description", "")
                     name = frontmatter.get("name", name)
+                    # Only an explicit boolean ``false`` opts out of the target
+                    # gate. Any other value (missing, null, 0, "false", …) keeps
+                    # the safe default so malformed frontmatter can't silently
+                    # bypass the authorized-target check.
+                    rt = frontmatter.get("requires_target", True)
+                    requires_target = rt if isinstance(rt, bool) else True
+                    raw_routing = frontmatter.get("routing")
+                    if isinstance(raw_routing, dict):
+                        routing = raw_routing
             except yaml.YAMLError:
                 pass
             body = parts[2].strip()
@@ -191,6 +209,8 @@ def _parse_skill_file(path: Path) -> dict[str, Any]:
         "description": description,
         "content": body,
         "path": str(path),
+        "requires_target": requires_target,
+        "routing": routing,
         "references": [],
         "references_dir": "",
         "skill_dir": str(path.parent) if path.name == "SKILL.md" else "",

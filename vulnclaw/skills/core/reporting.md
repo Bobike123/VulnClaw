@@ -1,6 +1,9 @@
 ---
 name: reporting
 description: 报告生成流程 — 生成结构化渗透测试报告和PoC
+routing:
+  phases: [reporting]
+  task_types: [report]
 ---
 
 # 报告生成 Skill

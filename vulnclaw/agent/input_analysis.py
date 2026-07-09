@@ -7,6 +7,34 @@ from typing import Optional
 
 from vulnclaw.agent.context import PentestPhase, TaskConstraints
 
+# A ``/skill`` launch is dispatched as the prompt ``Use VulnClaw skill <name>. …``
+# (see ``dispatch_skill_slash_command``). Captured so we can tell a self-discovering
+# skill launch apart from an ordinary target-first task.
+_SKILL_LAUNCH_RE = re.compile(r"^\s*Use VulnClaw skill\s+([A-Za-z0-9_-]+)\.", re.IGNORECASE)
+
+
+def _is_self_discovering_skill_launch(text: str) -> bool:
+    """Return True when ``text`` launches a ``requires_target: false`` skill.
+
+    Such a skill (e.g. ``hackerone``) receives a *discovery seed* — a scope link —
+    rather than a scan target. Deriving ``allowed_hosts`` from that seed would lock
+    the run to the seed's host (e.g. ``hackerone.com``) and block the in-scope assets
+    the skill later discovers, so the implicit host constraint is skipped for these
+    launches. The skill's own scope-guard, plus ``BLOCKED_PATTERNS`` /
+    ``RESERVED_IP_RANGES`` / target validation, remain in force. Explicit constraint
+    language in the prompt is unaffected.
+    """
+    match = _SKILL_LAUNCH_RE.match(text or "")
+    if not match:
+        return False
+    try:
+        from vulnclaw.skills.loader import load_skill_by_name
+
+        skill = load_skill_by_name(match.group(1))
+    except Exception:
+        return False
+    return bool(skill) and skill.get("requires_target", True) is False
+
 
 def detect_phase(user_input: str) -> Optional[PentestPhase]:
     """Detect pentest phase from user input using keyword matching."""
@@ -158,7 +186,7 @@ def extract_task_constraints(user_input: str) -> TaskConstraints:
         if path and path not in constraints.blocked_paths:
             constraints.blocked_paths.append(path)
 
-    if detected_target:
+    if detected_target and not _is_self_discovering_skill_launch(text):
         target_lower = detected_target.lower()
         if target_lower.startswith("http://") or target_lower.startswith("https://"):
             host_match = re.search(r"^https?://([^/:?#]+)", target_lower)

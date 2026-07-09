@@ -380,6 +380,60 @@ class TestCLI:
         ]
         assert "/custom/path/report.md" in result.output
 
+    def test_run_engine_team_routes_to_team_supervisor(self, runner, monkeypatch):
+        from types import SimpleNamespace
+
+        import vulnclaw.agent.team as team
+        import vulnclaw.cli.main as cli_main
+        from vulnclaw.cli.main import app
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        config.llm.api_key = "test-key"
+        config.session.solve_max_steps = 7
+        monkeypatch.setattr(cli_main, "load_config", lambda: config)
+
+        calls = []
+
+        async def fake_run_team_pentest(agent, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(plan=SimpleNamespace(steps=[]))
+
+        monkeypatch.setattr(team, "run_team_pentest", fake_run_team_pentest)
+
+        class DummyBoard:
+            def get_summary(self):
+                return {
+                    "completed": False,
+                    "facts": 1,
+                    "intents": 0,
+                    "complete_reason": "",
+                }
+
+        class DummyAgent:
+            mcp_manager = None
+
+            def __init__(self, *_args):
+                self.context = SimpleNamespace(state=SimpleNamespace(board=DummyBoard()))
+
+        async def fake_orchestrated(*, command, target, resume, snapshot, runner):
+            await runner(DummyAgent(), config)
+            return type("RunResult", (), {"summary": {"findings_count": 0}})()
+
+        monkeypatch.setattr(cli_main, "_run_cli_orchestrated_task", fake_orchestrated)
+        monkeypatch.setattr(
+            cli_main,
+            "_generate_report_for_target",
+            lambda target, **kwargs: "/tmp/report.md",
+        )
+
+        result = runner.invoke(app, ["run", "https://example.com", "--engine", "team"])
+
+        assert result.exit_code == 0
+        assert calls
+        assert calls[0]["target"] == "https://example.com"
+        assert calls[0]["max_steps"] == 7
+
     def test_run_cli_constraints_are_appended_to_prompt(self, runner, monkeypatch):
         import vulnclaw.cli.main as cli_main
         from vulnclaw.cli.main import app
@@ -942,6 +996,71 @@ class TestCLI:
 
         assert result == "launch"
         assert session["_nl_text"] == "Use VulnClaw skill ctf-web. find the flag"
+
+    def test_skill_slash_with_args_requires_target_by_default(self, monkeypatch):
+        import vulnclaw.cli.tui as tui_mod
+
+        monkeypatch.setattr(
+            tui_mod,
+            "load_skill_by_name",
+            lambda name: {"name": name, "requires_target": True},
+        )
+        session = {"state": tui_mod.TuiState(), "_message": "", "_prompt": None}
+
+        handled = tui_mod.dispatch_skill_slash_command("needs-target", "go", session)
+
+        assert handled is True
+        assert session["_message"] == tui_mod._("tui.please_set_target")
+        assert session.get("_action") != "launch"
+
+    def test_self_discovering_skill_launches_without_target(self, monkeypatch):
+        import vulnclaw.cli.tui as tui_mod
+
+        # A skill declaring ``requires_target: false`` (e.g. hackerone) discovers
+        # its target from args, so it launches with no preset target.
+        monkeypatch.setattr(
+            tui_mod,
+            "load_skill_by_name",
+            lambda name: {"name": name, "requires_target": False},
+        )
+        session = {"state": tui_mod.TuiState(), "_message": "", "_prompt": None}
+
+        handled = tui_mod.dispatch_skill_slash_command(
+            "hackerone", "https://hackerone.com/example", session
+        )
+
+        assert handled is True
+        assert session["_action"] == "launch"
+        assert (
+            session["_nl_text"]
+            == "Use VulnClaw skill hackerone. https://hackerone.com/example"
+        )
+        # The scope link stands in as the target so the launched subprocess
+        # records a real target rather than the "<target>" placeholder.
+        assert session["state"].target == "https://hackerone.com/example"
+
+    def test_self_discovering_skill_keeps_preset_target(self, monkeypatch):
+        import vulnclaw.cli.tui as tui_mod
+
+        monkeypatch.setattr(
+            tui_mod,
+            "load_skill_by_name",
+            lambda name: {"name": name, "requires_target": False},
+        )
+        session = {
+            "state": tui_mod.TuiState(target="https://preset.example"),
+            "_message": "",
+            "_prompt": None,
+        }
+
+        handled = tui_mod.dispatch_skill_slash_command(
+            "hackerone", "https://hackerone.com/example", session
+        )
+
+        assert handled is True
+        assert session["_action"] == "launch"
+        # An already-set target is respected, not overwritten by the args.
+        assert session["state"].target == "https://preset.example"
 
     def test_tui_runtime_diagnostic_panel_renders_environment_summary(self, monkeypatch):
         import vulnclaw.cli.tui as tui_mod

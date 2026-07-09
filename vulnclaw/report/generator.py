@@ -177,7 +177,7 @@ REPORT_TEMPLATE = """\
 ## 6. 附件
 
 - PoC 脚本: 见 `pocs/` 目录
-- 流量抓包: 见 `captures/` 目录
+- 流量抓包: 见 `evidence/traffic/` 目录（requests.jsonl 索引 + 每请求原始请求/响应）
 - 截图证据: 见 `screenshots/` 目录
 
 ---
@@ -303,6 +303,7 @@ def generate_report(
         report_content += "\n\n" + _render_verified_finding_details_clean(
             verified_findings,
             heading="## 6. 已验证漏洞定位与复现信息",
+            traffic_store=_resolve_traffic_store(output.parent),
         )
     if target_state_context:
         report_content += "\n\n" + _render_target_state_context(target_state_context)
@@ -315,6 +316,13 @@ def generate_report(
         output.write_text(html_content, encoding="utf-8")
     else:
         output.write_text(report_content, encoding="utf-8")
+
+    # ★ Emit machine-consumable findings artifacts next to the report: findings.json
+    # (all findings + lifecycle) and findings.sarif (verified findings only). These
+    # draw from the same verified feed as the report — no divergent finding lists.
+    from vulnclaw.report.findings_output import write_findings_artifacts
+
+    write_findings_artifacts(session, output.parent / "findings")
 
     return output
 
@@ -722,8 +730,16 @@ def generate_persistent_cycle_report(
         report_content += "\n\n" + _render_verified_finding_details_clean(
             verified_findings,
             heading="## 已验证漏洞定位与复现信息",
+            traffic_store=_resolve_traffic_store(output.parent),
         )
     output.write_text(report_content, encoding="utf-8")
+
+    # ★ Emit the same machine-consumable findings artifacts as generate_report, so a
+    # persistent run's per-cycle reports also produce findings/findings.json and
+    # findings/findings.sarif.
+    from vulnclaw.report.findings_output import write_findings_artifacts
+
+    write_findings_artifacts(session, output.parent / "findings")
 
     return output
 
@@ -816,8 +832,57 @@ def _build_repro_summary_clean(finding: VulnerabilityFinding) -> str:
     return "；".join(parts) if parts else "暂无可用复现说明"
 
 
+def _resolve_traffic_store(output_dir: Path) -> Any | None:
+    """Return the run's TrafficStore (report dir preferred, config default as
+    fallback so captures the agent wrote are found), or None if none exist."""
+    try:
+        from vulnclaw.traffic.paths import resolve_report_traffic_store
+    except Exception:
+        return None
+    store = resolve_report_traffic_store(output_dir)
+    return store if store.index_path.exists() else None
+
+
+def _render_http_captures(finding: VulnerabilityFinding, traffic_store: Any) -> list[str]:
+    """Inline the raw request/response for each http_capture evidence ref.
+
+    Mirrors the way poc_builder inlines PoC scripts: each verified finding's
+    ``evidence_refs`` with ``kind="http_capture"`` is resolved back to its
+    JSONL record + blob files and rendered as fenced code blocks.
+    """
+    refs = getattr(finding, "evidence_refs", None) or []
+    if not refs or traffic_store is None:
+        return []
+
+    lines: list[str] = []
+    for ref in refs:
+        if getattr(ref, "kind", "") != "http_capture":
+            continue
+        request_id = getattr(ref, "request_id", "")
+        view = traffic_store.view(request_id) if request_id else None
+        if not view:
+            continue
+        header = f"  - 抓包证据 `{request_id}` — {view.get('method')} {view.get('url')} → {view.get('status')}"
+        lines.append(header)
+        request_text = (view.get("request_text") or "").strip()
+        response_text = (view.get("response_text") or "").strip()
+        if request_text:
+            lines.append("    - 原始请求:")
+            lines.append("")
+            lines.append("```http")
+            lines.append(request_text)
+            lines.append("```")
+        if response_text:
+            lines.append("    - 原始响应:")
+            lines.append("")
+            lines.append("```http")
+            lines.append(response_text)
+            lines.append("```")
+    return lines
+
+
 def _render_verified_finding_details_clean(
-    findings: list[VulnerabilityFinding], heading: str
+    findings: list[VulnerabilityFinding], heading: str, traffic_store: Any | None = None
 ) -> str:
     lines = [heading, ""]
     for idx, finding in enumerate(findings, 1):
@@ -830,6 +895,10 @@ def _render_verified_finding_details_clean(
         if finding.evidence:
             lines.append(f"- 验证证据: {finding.evidence}")
         lines.append(f"- 复现 / PoC: {_build_repro_summary_clean(finding)}")
+        capture_lines = _render_http_captures(finding, traffic_store)
+        if capture_lines:
+            lines.append("- 抓包复现证据:")
+            lines.extend(capture_lines)
         lines.append("")
     return "\n".join(lines).rstrip()
 

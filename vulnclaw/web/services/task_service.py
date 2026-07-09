@@ -60,6 +60,16 @@ async def _run_task(manager: WebTaskManager, task_id: str, request: TaskCreateRe
                 },
             )
 
+        def on_legacy_import(restore_result) -> None:
+            manager.publish(
+                task_id,
+                "legacy_import",
+                {
+                    "target": restore_result.target,
+                    "snapshot_id": restore_result.snapshot_id,
+                },
+            )
+
         async def runner_fn(shared_agent: AgentCore) -> None:
             manager.set_running(task_id)
             if request.command == "persistent":
@@ -75,7 +85,9 @@ async def _run_task(manager: WebTaskManager, task_id: str, request: TaskCreateRe
             snapshot_id=request.snapshot_id,
             before_restore=before_restore,
             on_restored=on_restored,
+            on_legacy_import=on_legacy_import,
             runner=runner_fn,
+            **_run_context_kwargs(request),
         )
         manager.set_completed(task_id, latest_message="Task finished", summary=run_result.summary)
     except asyncio.CancelledError:
@@ -210,6 +222,29 @@ def _build_task_constraints(request: TaskCreateRequest) -> TaskConstraints:
     if not constraints.is_empty():
         constraints.strict_mode = True
     return constraints
+
+
+def _run_context_kwargs(request: TaskCreateRequest) -> dict:
+    kwargs = {}
+    if request.run_name:
+        kwargs["run_name"] = request.run_name
+    if request.resume_run_name:
+        kwargs["resume_run_name"] = request.resume_run_name
+    if request.runs_dir:
+        kwargs["runs_dir"] = request.runs_dir
+    if request.additional_targets:
+        kwargs["additional_targets"] = request.additional_targets
+    if request.target_type:
+        kwargs["target_type"] = request.target_type
+    if request.mount:
+        kwargs["mount"] = request.mount
+    if request.repair:
+        kwargs["repair"] = request.repair
+    if request.force_fresh:
+        kwargs["force_fresh"] = request.force_fresh
+    if request.no_import:
+        kwargs["no_import"] = request.no_import
+    return kwargs
 
 
 def _build_prompt_v2(request: TaskCreateRequest) -> str:

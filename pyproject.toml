@@ -61,6 +61,13 @@ pdf = [
     # Optional: render reports to PDF via report.pdf_exporter.
     "reportlab>=4.0",
 ]
+traffic = [
+    # Optional: sandbox-native traffic evidence backends (MIT/BSD-family).
+    # The capture/normalization/tool logic works without these; they enable the
+    # live proxy + headless browser backends inside the per-run sandbox.
+    "mitmproxy>=10.0",
+    "playwright>=1.40",
+]
 
 [project.urls]
 Homepage = "https://github.com/Unclecheng-li/VulnClaw"

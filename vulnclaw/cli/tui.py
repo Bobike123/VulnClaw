@@ -1052,8 +1052,15 @@ def dispatch_skill_slash_command(cmd: str, args: str, session: dict[str, Any]) -
     if args:
         state: TuiState = session["state"]
         if not state.target.strip():
-            session["_message"] = _("tui.please_set_target")
-            return True
+            # Skills that need a preset target still warn when none is set.
+            if skill.get("requires_target", True):
+                session["_message"] = _("tui.please_set_target")
+                return True
+            # Self-discovering skills (frontmatter ``requires_target: false``,
+            # e.g. ``hackerone``) derive their target from ``args`` — a scope
+            # link. Adopt it as the draft target so the launched subprocess
+            # records a real target instead of the ``<target>`` placeholder.
+            state.target = args.strip()
         prompt = f"Use VulnClaw skill {skill['name']}. {args.strip()}"
         session["_nl_text"] = prompt
         session["_nl_history"] = prompt
@@ -2243,7 +2250,7 @@ def _edit_session_config(screen: Console, config):
         screen, "PoC language", ["python", "bash"], config.session.poc_language
     )
     config.session.engine = _prompt_choice_value(
-        screen, "Autonomous engine", ["solve", "rounds"], config.session.engine
+        screen, "Autonomous engine", ["solve", "team", "rounds"], config.session.engine
     )
     config.session.max_rounds = _prompt_int_value(screen, "Max rounds", config.session.max_rounds)
     config.session.show_thinking = _prompt_bool_value(

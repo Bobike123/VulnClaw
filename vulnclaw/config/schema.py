@@ -272,15 +272,24 @@ class SessionConfig(BaseModel):
     """Session / output configuration."""
 
     output_dir: Path = Field(default=Path("./vulnclaw-output"), description="Output directory")
+    runs_dir: Path | None = Field(
+        default=None,
+        description="Default run-directory root (defaults to ~/.vulnclaw/runs when unset)",
+    )
     auto_save: bool = Field(default=True, description="Auto-save session state")
     report_format: str = Field(
         default="markdown", description="Default report format: markdown, html"
     )
     poc_language: str = Field(default="python", description="Default PoC language: python, bash")
     max_rounds: int = Field(default=15, description="Max autonomous pentest rounds (1-100)")
-    # Autonomous engine: "solve" = goal-driven OODA (default), "rounds" = legacy fixed-round loop
+    # Autonomous engine: "solve" = goal-driven OODA (default),
+    # "team" = role-specialized supervisor, "rounds" = legacy fixed-round loop
     engine: str = Field(
-        default="solve", description="Autonomous engine: solve (goal-driven) or rounds (legacy)"
+        default="solve",
+        description=(
+            "Autonomous engine: solve (goal-driven), team (role-specialized), "
+            "or rounds (legacy)"
+        ),
     )
     # Solve-engine knobs
     solve_max_steps: int = Field(

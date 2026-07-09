@@ -45,12 +45,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from vulnclaw import __version__
+from vulnclaw import __version__, headless
 from vulnclaw.agent.constraint_policy import validate_action_constraints
 from vulnclaw.agent.input_analysis import extract_task_constraints
 from vulnclaw.agent.think_filter import format_think_tags, strip_think_tags
 from vulnclaw.cli.manual import available_topics, render_manual
 from vulnclaw.config.settings import (
+    RUNS_DIR,
     apply_provider_preset,
     list_providers,
     load_config,
@@ -990,6 +991,81 @@ def _append_cli_constraints_compat(
         return _append_cli_constraints(prompt, only_port, only_host, only_path)
 
 
+def _validate_headless_choices(
+    scan_mode: str, fail_on: str, scope_mode: str
+) -> Optional[str]:
+    """Return an error message for a bad headless choice, else ``None``."""
+    if scan_mode not in headless.SCAN_MODES:
+        return f"--scan-mode must be one of: {', '.join(headless.SCAN_MODES)}"
+    if fail_on not in headless.FAIL_ON_MODES:
+        return f"--fail-on must be one of: {', '.join(headless.FAIL_ON_MODES)}"
+    if scope_mode not in headless.SCOPE_MODES:
+        return f"--scope-mode must be one of: {', '.join(headless.SCOPE_MODES)}"
+    return None
+
+
+def _run_non_interactive(
+    *,
+    target: str,
+    output: Optional[str],
+    profile: "headless.ScanProfile",
+    scan_mode: str,
+    scope_mode: str,
+    fail_on: str,
+    run_coro_factory,
+    classification_holder: dict,
+) -> None:
+    """Drive a headless run: no prompts, structured output, exit-code contract.
+
+    Any crash during the scan exits :data:`headless.EXIT_ERROR` (1) — a broken
+    scan never exits 0. On completion the finding set is mapped to an exit code
+    under ``--fail-on`` and a ``summary.json`` is written into the run directory.
+    """
+    from datetime import datetime
+
+    try:
+        asyncio.run(run_coro_factory())
+    except typer.Exit:
+        raise
+    except BaseException as exc:  # noqa: BLE001 - CI must see a nonzero exit, not a traceback
+        err_console.print(f"[!] Scan did not complete: {type(exc).__name__}: {exc}")
+        raise typer.Exit(headless.EXIT_ERROR) from exc
+
+    classification = classification_holder.get("classification") or headless.FindingClassification(
+        verified=0, candidates=0
+    )
+    exit_code = headless.determine_exit_code(classification, fail_on)
+
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = headless.run_directory(RUNS_DIR, target, run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    # Co-locate the report inside the run directory unless the caller pinned a
+    # path with --output, so all structured output for a run lives in one place.
+    report_output = output or str(run_dir / "report.md")
+    report_path = _generate_report_for_target(target, output_path=report_output)
+
+    summary = headless.build_run_summary(
+        target=target,
+        scan_mode=scan_mode,
+        scope_mode=scope_mode,
+        fail_on=fail_on,
+        profile=profile,
+        classification=classification,
+        exit_code=exit_code,
+        report_path=str(report_path),
+    )
+    summary_path = headless.write_run_artifacts(run_dir, summary)
+
+    console.print(
+        f"[*] findings: verified={classification.verified} "
+        f"candidates={classification.candidates} | "
+        f"exit={exit_code} ({headless.exit_code_meaning(exit_code)})"
+    )
+    console.print(f"[*] run artifacts: {summary_path}")
+    console.print(_("cli.report_generated", path=report_path))
+    raise typer.Exit(exit_code)
+
+
 def _append_action_constraints(
     prompt: str, allow_actions: Optional[str], block_actions: Optional[str]
 ) -> str:
@@ -1010,6 +1086,15 @@ async def _run_cli_orchestrated_task(
     resume: bool,
     snapshot: Optional[str],
     runner,
+    run_name: Optional[str] = None,
+    resume_run_name: Optional[str] = None,
+    runs_dir: Optional[str] = None,
+    additional_targets: Optional[list[str]] = None,
+    target_type: Optional[str] = None,
+    mount: bool = False,
+    repair: bool = False,
+    force_fresh: bool = False,
+    no_import: bool = False,
 ):
     """Run a CLI task through the shared orchestrator helpers."""
     from vulnclaw.agent.core import AgentCore
@@ -1027,20 +1112,98 @@ async def _run_cli_orchestrated_task(
                 f"[*] Restored saved target state: [bold]{restore_result.target or target}[/]"
             )
 
-        return await run_agent_task(
+        def on_legacy_import(restore_result) -> None:
+            console.print(
+                "[yellow]Imported legacy target state into run-backed storage:[/] "
+                f"[bold]{restore_result.target or target}[/]"
+            )
+
+        result = await run_agent_task(
             agent=agent,
             command=command,
             target=target,
             resume=resume,
             snapshot_id=snapshot,
+            run_name=run_name,
+            resume_run_name=resume_run_name,
+            runs_dir=runs_dir,
+            additional_targets=additional_targets,
+            target_type=target_type,
+            mount=mount,
+            repair=repair,
+            force_fresh=force_fresh,
+            no_import=no_import,
             on_restored=on_restored,
+            on_legacy_import=on_legacy_import,
             runner=lambda shared_agent: runner(shared_agent, config),
         )
+        _print_run_completion_summary(result.summary)
+        if result.exit_code:
+            raise typer.Exit(result.exit_code)
+        return result
     finally:
         import signal
 
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         mcp_manager.stop_all()
+
+
+def _run_context_kwargs(
+    *,
+    run_name: Optional[str] = None,
+    resume_run_name: Optional[str] = None,
+    runs_dir: Optional[str] = None,
+    additional_targets: Optional[list[str]] = None,
+    target_type: Optional[str] = None,
+    mount: bool = False,
+    repair: bool = False,
+    force_fresh: bool = False,
+    no_import: bool = False,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    if run_name:
+        kwargs["run_name"] = run_name
+    if resume_run_name:
+        kwargs["resume_run_name"] = resume_run_name
+    if runs_dir:
+        kwargs["runs_dir"] = runs_dir
+    if additional_targets:
+        kwargs["additional_targets"] = additional_targets
+    if target_type:
+        kwargs["target_type"] = target_type
+    if mount:
+        kwargs["mount"] = mount
+    if repair:
+        kwargs["repair"] = repair
+    if force_fresh:
+        kwargs["force_fresh"] = force_fresh
+    if no_import:
+        kwargs["no_import"] = no_import
+    return kwargs
+
+
+def _print_run_completion_summary(summary: dict[str, Any]) -> None:
+    run_name = summary.get("run_name")
+    run_dir = summary.get("run_dir")
+    if not run_name or not run_dir:
+        return
+    artifacts = summary.get("artifact_locations", {})
+    console.print(
+        Panel(
+            f"Run: [bold]{run_name}[/]\n"
+            f"Directory: [bold]{run_dir}[/]\n"
+            f"Findings: [bold]{summary.get('verified_count', 0)} verified / "
+            f"{summary.get('pending_count', 0)} pending / "
+            f"{summary.get('candidate_count', 0)} candidate[/]\n"
+            f"Artifacts: findings={artifacts.get('findings', '')} "
+            f"reports={artifacts.get('reports', '')} evidence={artifacts.get('evidence', '')}\n"
+            f"Resume: [bold]{summary.get('resume_command', '')}[/]\n"
+            f"Exit: [bold]{summary.get('exit_code', 0)}[/] "
+            f"({summary.get('exit_meaning', 'completed')})",
+            title="Run Summary",
+            border_style="green" if summary.get("exit_code", 0) == 0 else "yellow",
+        )
+    )
 
 
 # 鈹€鈹€ Sub-commands 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -1054,6 +1217,11 @@ def run(
     # [新增] 2026-06-10 Nyaecho - TUI自然语言驱动: 允许通过 --prompt 传入自定义提示词覆盖自动生成的prompt
     prompt: Optional[str] = typer.Option(
         None, "--prompt", help="Custom natural language prompt (overrides auto-generated prompt)"
+    ),
+    engine: Optional[str] = typer.Option(
+        None,
+        "--engine",
+        help="Autonomous engine for this run: solve, team, or rounds",
     ),
     only_port: Optional[int] = typer.Option(
         None, "--only-port", help="Restrict testing to a single port"
@@ -1080,14 +1248,114 @@ def run(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    # ── Headless / CI knobs ────────────────────────────────────────────
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Headless mode: zero prompts, structured output to the run directory, "
+        "and a distinct exit code (see --fail-on). Intended for CI.",
+    ),
+    scan_mode: str = typer.Option(
+        headless.DEFAULT_SCAN_MODE,
+        "--scan-mode",
+        help="Depth preset over the effort knobs: quick | standard | deep. "
+        "Explicit --max-* flags override the preset.",
+    ),
+    fail_on: str = typer.Option(
+        headless.DEFAULT_FAIL_ON,
+        "--fail-on",
+        help="Which finding class trips a nonzero exit: verified | any | never.",
+    ),
+    scope_mode: str = typer.Option(
+        headless.DEFAULT_SCOPE_MODE,
+        "--scope-mode",
+        help="Scope selection recorded for the run: full (whole surface, current "
+        "behaviour) | auto (diff-scope to changed code — consumed by the Target "
+        "diff-scope model, #35; falls back to full until that lands).",
+    ),
+    max_steps: Optional[int] = typer.Option(
+        None, "--max-steps", help="Override the scan-mode explore-step cap"
+    ),
+    max_intents: Optional[int] = typer.Option(
+        None, "--max-intents", help="Override the scan-mode max-intents-per-step"
+    ),
+    max_tool_rounds: Optional[int] = typer.Option(
+        None, "--max-tool-rounds", help="Override the scan-mode tool-rounds-per-intent"
+    ),
+    max_parallel: Optional[int] = typer.Option(
+        None, "--max-parallel", help="Override the scan-mode fan-out cap (1 = single agent)"
+    ),
+    max_rounds: Optional[int] = typer.Option(
+        None, "--max-rounds", help="Override the scan-mode legacy-engine round cap"
+    ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(
+        None, "--runs-dir", help="Run-directory root (overrides VULNCLAW_RUNS_DIR)"
+    ),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(
+        None, "--target-type", help="Override target type: local_repo, repo_url, web_url, domain, ip"
+    ),
+    mount: bool = typer.Option(
+        False, "--mount", help="Use mount ingress mode for local repository targets"
+    ),
+    repair: bool = typer.Option(
+        False, "--repair", help="Repair a corrupt run by rolling back to the last valid snapshot"
+    ),
+    force_fresh: bool = typer.Option(
+        False, "--force-fresh", help="Start a fresh run without overwriting a corrupt one"
+    ),
+    no_import: bool = typer.Option(
+        False, "--no-import", help="Read legacy target state without importing it into a run"
+    ),
 ) -> None:
-    """Run a full authorized pentest workflow."""
+    """Run a full authorized pentest workflow.
+
+    Interactive by default. Pass ``--non-interactive`` for a headless CI run: no
+    prompts, a machine-readable ``summary.json`` in the run directory, and an
+    exit code that lets a pipeline tell a clean scan (0) from a broken one (1)
+    from one that confirmed a verified finding (2) or only candidates (3).
+    """
     config = load_config()
+
+    # A bad target / scan-mode / fail-on / scope-mode is a misconfiguration:
+    # exit 1 (never a silent green run).
+    if not target or not target.strip():
+        err_console.print("[!] A non-empty target is required.")
+        raise typer.Exit(headless.EXIT_ERROR)
+    bad_choice = _validate_headless_choices(scan_mode, fail_on, scope_mode)
+    if bad_choice is not None:
+        err_console.print(f"[!] {bad_choice}")
+        raise typer.Exit(headless.EXIT_ERROR)
     if not has_llm_credentials(config.llm):
         err_console.print("[!] Configure LLM credentials first (api_key or auth_mode).")
-        raise typer.Exit(1)
+        raise typer.Exit(headless.EXIT_ERROR)
+    if engine is not None and engine not in {"solve", "team", "rounds"}:
+        err_console.print("[!] --engine must be one of: solve, team, rounds")
+        raise typer.Exit(headless.EXIT_ERROR)
 
-    console.print(f"[*] Target: [bold]{target}[/] | Scope: [bold]{scope}[/]")
+    profile = headless.resolve_scan_profile(
+        config,
+        scan_mode,
+        max_steps=max_steps,
+        max_intents=max_intents,
+        max_tool_rounds=max_tool_rounds,
+        max_parallel=max_parallel,
+        max_rounds=max_rounds,
+    )
+
+    console.print(
+        f"[*] Target: [bold]{target}[/] | Scope: [bold]{scope}[/] | "
+        f"Mode: [bold]{profile.scan_mode}[/]"
+        + (" | [bold]non-interactive[/]" if non_interactive else "")
+    )
 
     task_prompt = prompt if prompt else (
         f"Perform an authorized {scope} pentest against {target}. "
@@ -1100,37 +1368,78 @@ def run(
     violation = validate_action_constraints("run", extract_task_constraints(task_prompt))
     if violation is not None:
         err_console.print(f"[!] {violation}")
-        raise typer.Exit(1)
+        raise typer.Exit(headless.EXIT_ERROR)
 
     board_holder: dict = {}
+    classification_holder: dict = {}
 
     async def _run():
         async def runner(agent, shared_config):
-            sink = TerminalStreamSink(console, shared_config.session.show_thinking)
-            # 默认走目标驱动 solve 引擎；engine=rounds 时回退到旧的固定轮数循环
-            if getattr(shared_config.session, "engine", "solve") == "solve":
+            # Apply the resolved fan-out / round caps so solve/team/auto_pentest
+            # (which read them off config.session) honour the scan-mode preset.
+            shared_config.session.solve_max_parallel = profile.max_parallel
+            shared_config.session.max_rounds = profile.max_rounds
+            # In headless mode suppress streaming thinking so nothing blocks on a TTY.
+            sink = (
+                None
+                if non_interactive
+                else TerminalStreamSink(console, shared_config.session.show_thinking)
+            )
+            on_event = None if non_interactive else _make_solve_event_printer(console)
+            selected_engine = engine or getattr(shared_config.session, "engine", "solve")
+            # 默认走目标驱动 solve 引擎；engine=team 启用角色团队；engine=rounds 回退旧循环
+            if selected_engine == "solve":
                 result = await agent.solve(
                     task_prompt,
                     target=target,
-                    max_steps=shared_config.session.solve_max_steps,
-                    max_intents=shared_config.session.solve_max_intents,
-                    max_tool_rounds=shared_config.session.solve_max_tool_rounds,
+                    max_steps=profile.max_steps,
+                    max_intents=profile.max_intents,
+                    max_tool_rounds=profile.max_tool_rounds,
                     stream_sink=sink,
-                    on_event=_make_solve_event_printer(console),
+                    on_event=on_event,
                 )
-                board_holder["board"] = agent.context.state.board.get_summary()
-                return result
-            return await agent.auto_pentest(
-                task_prompt,
-                target=target,
-                max_rounds=shared_config.session.max_rounds,
-                on_step=lambda r, res: (
-                    _print_agent_output(f"[dim]Round {r}[/]: {res.output[:200]}...", shared_config)
-                    if res.output
-                    else None
-                ),
-                stream_sink=sink,
+            elif selected_engine == "team":
+                from vulnclaw.agent.team import run_team_pentest
+
+                def agent_factory():
+                    return agent.__class__(shared_config, getattr(agent, "mcp_manager", None))
+
+                result = await run_team_pentest(
+                    agent,
+                    user_input=task_prompt,
+                    target=target,
+                    agent_factory=agent_factory,
+                    max_steps=profile.max_steps,
+                    max_intents=profile.max_intents,
+                    max_tool_rounds=profile.max_tool_rounds,
+                    # team fan-out reads its own cap (not config), so pass the
+                    # resolved scan-mode profile explicitly or quick/--max-parallel
+                    # would be ignored and it would fan out to every ready step.
+                    max_parallel=profile.max_parallel,
+                    stream_sink=sink,
+                    on_event=on_event,
+                )
+            else:
+                result = await agent.auto_pentest(
+                    task_prompt,
+                    target=target,
+                    max_rounds=profile.max_rounds,
+                    on_step=lambda r, res: (
+                        _print_agent_output(
+                            f"[dim]Round {r}[/]: {res.output[:200]}...", shared_config
+                        )
+                        if res.output and not non_interactive
+                        else None
+                    ),
+                    stream_sink=sink,
+                )
+            board = getattr(getattr(getattr(agent, "context", None), "state", None), "board", None)
+            if board is not None:
+                board_holder["board"] = board.get_summary()
+            classification_holder["classification"] = headless.classify_findings(
+                getattr(agent, "session_state", None)
             )
+            return result
 
         result = await _run_cli_orchestrated_task(
             command="run",
@@ -1138,8 +1447,32 @@ def run(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
         return result
+
+    if non_interactive:
+        _run_non_interactive(
+            target=target,
+            output=output,
+            profile=profile,
+            scan_mode=scan_mode,
+            scope_mode=scope_mode,
+            fail_on=fail_on,
+            run_coro_factory=_run,
+            classification_holder=classification_holder,
+        )
+        return
 
     orchestrated = asyncio.run(_run())
     if board_holder.get("board"):
@@ -1175,6 +1508,21 @@ def solve(
     ),
     resume: bool = typer.Option(True, "--resume/--no-resume", help="Resume previous target state"),
     snapshot: Optional[str] = typer.Option(None, "--snapshot", help="Resume from a snapshot id"),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """Goal-driven solve loop — runs until the goal is met or the exploration frontier is exhausted.
 
@@ -1217,6 +1565,17 @@ def solve(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     asyncio.run(_run())
@@ -1267,6 +1626,21 @@ def persistent(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """Run a persistent authorized pentest across multiple cycles."""
     from vulnclaw.agent.core import PersistentCycleResult
@@ -1352,6 +1726,17 @@ def persistent(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     try:
@@ -1424,6 +1809,21 @@ def recon(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """Run reconnaissance only."""
     task_prompt = prompt if prompt else f"Perform authorized reconnaissance against {target} without exploitation."
@@ -1448,6 +1848,17 @@ def recon(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     asyncio.run(_run())
@@ -1486,6 +1897,21 @@ def scan(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """Run vulnerability scanning only."""
     port_hint = f", focusing on ports {ports}" if ports else ""
@@ -1511,6 +1937,17 @@ def scan(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     asyncio.run(_run())
@@ -1581,6 +2018,21 @@ def network_scan(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """运行基于 nmap 的网络扫描，并对薄弱环节进行跟进。"""
     normalized_profile = profile.strip().lower()
@@ -1693,6 +2145,17 @@ def network_scan(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     asyncio.run(_run())
@@ -1732,6 +2195,21 @@ def exploit(
     snapshot: Optional[str] = typer.Option(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="Explicit name for a new run directory"
+    ),
+    resume_run: Optional[str] = typer.Option(
+        None, "--resume-run", help="Resume an exact run by run name"
+    ),
+    runs_dir: Optional[str] = typer.Option(None, "--runs-dir", help="Run-directory root"),
+    additional_targets: Optional[list[str]] = typer.Option(
+        None, "--target", help="Additional target to include in this run"
+    ),
+    target_type: Optional[str] = typer.Option(None, "--target-type", help="Override target type"),
+    mount: bool = typer.Option(False, "--mount", help="Use mount ingress mode"),
+    repair: bool = typer.Option(False, "--repair", help="Repair a corrupt run"),
+    force_fresh: bool = typer.Option(False, "--force-fresh", help="Start a fresh run"),
+    no_import: bool = typer.Option(False, "--no-import", help="Do not import legacy state"),
 ) -> None:
     """Run exploitation only."""
     cve_hint = f" using {cve}" if cve else ""
@@ -1759,6 +2237,17 @@ def exploit(
             resume=resume,
             snapshot=snapshot,
             runner=runner,
+            **_run_context_kwargs(
+                run_name=run_name,
+                resume_run_name=resume_run,
+                runs_dir=runs_dir,
+                additional_targets=additional_targets,
+                target_type=target_type,
+                mount=mount,
+                repair=repair,
+                force_fresh=force_fresh,
+                no_import=no_import,
+            ),
         )
 
     asyncio.run(_run())
@@ -2697,6 +3186,21 @@ def main(
         help="Show the full CLI manual and exit.",
         is_eager=True,
     ),
+    resume_run_name: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        help="Resume an exact saved run by run name.",
+    ),
+    runs_dir: Optional[str] = typer.Option(
+        None,
+        "--runs-dir",
+        help="Run-directory root for --resume.",
+    ),
+    repair: bool = typer.Option(
+        False,
+        "--repair",
+        help="Repair a corrupt run by rolling back to the last valid snapshot.",
+    ),
 ) -> None:
     """Open the classic CLI/REPL by default."""
     if version:
@@ -2705,8 +3209,66 @@ def main(
     if show_manual:
         _print_cli_manual(None, "text")
         raise typer.Exit()
+    if ctx.invoked_subcommand is None and resume_run_name:
+        _resume_saved_run(resume_run_name, runs_dir=runs_dir, repair=repair)
+        raise typer.Exit()
     if ctx.invoked_subcommand is None:
         _run_repl()
+
+
+def _resume_saved_run(
+    run_name: str,
+    *,
+    runs_dir: Optional[str] = None,
+    repair: bool = False,
+) -> None:
+    from vulnclaw.run_context import RunCorruptError, load_run_context
+
+    config = load_config()
+    try:
+        run_context = load_run_context(
+            run_name,
+            runs_dir=runs_dir,
+            config=config,
+            repair=repair,
+        )
+    except RunCorruptError as exc:
+        err_console.print(f"[!] {exc}")
+        raise typer.Exit(1) from exc
+
+    targets = run_context.manifest.get("targets", [])
+    first_target = targets[0] if isinstance(targets, list) and targets else {}
+    if not isinstance(first_target, dict) or not first_target.get("input"):
+        err_console.print(f"[!] Run {run_name} has no resumable target in run.json")
+        raise typer.Exit(1)
+
+    target = str(first_target["input"])
+    command = str(run_context.manifest.get("command") or "run")
+    if not has_llm_credentials(config.llm):
+        err_console.print("[!] Configure LLM credentials first (api_key or auth_mode).")
+        raise typer.Exit(1)
+
+    async def _run():
+        async def runner(agent, shared_config):
+            sink = TerminalStreamSink(console, shared_config.session.show_thinking)
+            prompt = (
+                f"Continue the saved VulnClaw run {run_name} for {target}. "
+                "Resume from the loaded checkpoint and continue the authorized task."
+            )
+            return await agent.chat(prompt, target=target, stream_sink=sink)
+
+        return await _run_cli_orchestrated_task(
+            command=command,
+            target=target,
+            resume=True,
+            snapshot=None,
+            runner=runner,
+            resume_run_name=run_name,
+            runs_dir=runs_dir,
+            repair=repair,
+        )
+
+    asyncio.run(_run())
 
 
 def _auto_save_recon_report(agent, user_input: str, config) -> None:

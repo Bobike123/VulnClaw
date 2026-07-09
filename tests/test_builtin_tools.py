@@ -109,6 +109,50 @@ class TestBuiltinPythonExecute:
 
 
 class TestBuiltinMcpExecution:
+    def test_build_openai_tools_filters_schema_by_active_role(self):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        class DummyMcpManager:
+            def get_tool_schemas(self):
+                return [
+                    {
+                        "name": "fetch",
+                        "description": "Fetch a URL",
+                        "inputSchema": {"type": "object", "properties": {}},
+                    }
+                ]
+
+        tool_names = {
+            tool["function"]["name"]
+            for tool in builtin_tools.build_openai_tools(
+                DummyMcpManager(), active_role="developer"
+            )
+        }
+
+        assert "python_execute" in tool_names
+        assert "crypto_decode" in tool_names
+        assert "fetch" not in tool_names
+        assert "nmap_scan" not in tool_names
+
+    async def test_execute_mcp_tool_rejects_out_of_role_tool(self):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        class DummyMcpManager:
+            async def call_tool(self, tool_name, args):
+                return {"ok": True, "content": "should not run"}
+
+        agent = DummyAgent()
+        agent.active_role = "adviser"
+        agent.mcp_manager = DummyMcpManager()
+
+        result = await builtin_tools.execute_mcp_tool(
+            agent, "python_execute", {"code": "print('should not run')"}
+        )
+
+        assert "role_tool_violation" in result
+        assert "adviser" in result
+        assert "python_execute" in result
+
     async def test_execute_loads_secknowledge_reference(self):
         import vulnclaw.agent.builtin_tools as builtin_tools
 

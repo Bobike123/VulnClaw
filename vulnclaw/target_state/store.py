@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import json
+import os
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -11,11 +11,13 @@ from typing import Any, Optional
 
 from vulnclaw.agent.context import PentestPhase, SessionState
 from vulnclaw.config.settings import TARGETS_DIR, ensure_dirs
+from vulnclaw.run_context import RunContext, atomic_write_json
 from vulnclaw.target_state.planner import (
     build_resume_plan,
     compute_finding_confidence,
     compute_recon_asset_confidence,
 )
+from vulnclaw.targets import Target, legacy_target_state_key, parse_target
 
 TARGET_STATE_SCHEMA_VERSION = 2
 SNAPSHOT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
@@ -33,7 +35,21 @@ class SessionRestoreResult:
 
 
 def _target_key(target: str) -> str:
-    return hashlib.sha256(target.encode("utf-8")).hexdigest()[:16]
+    return _target_model(target).state_key
+
+
+def _legacy_target_key(target: str) -> str:
+    return legacy_target_state_key(target)
+
+
+def _target_model(target: str | Target) -> Target:
+    if isinstance(target, Target):
+        return target
+    try:
+        return parse_target(target)
+    except ValueError:
+        canonical = str(target)
+        return Target(kind="domain", raw=str(target), canonical=canonical)
 
 
 def _target_path(target: str) -> Path:
@@ -44,6 +60,21 @@ def _target_path(target: str) -> Path:
 def _target_dir(target: str) -> Path:
     ensure_dirs()
     return TARGETS_DIR / _target_key(target)
+
+
+def _legacy_target_dir(target: str) -> Path:
+    ensure_dirs()
+    return TARGETS_DIR / _legacy_target_key(target)
+
+
+def _legacy_target_path(target: str) -> Path:
+    return _legacy_target_dir(target) / "state.json"
+
+
+def _index_path(target: str | Target) -> Path:
+    model = _target_model(target)
+    ensure_dirs()
+    return TARGETS_DIR / model.state_key / "index.json"
 
 
 def _snapshot_dir(target: str) -> Path:
@@ -57,19 +88,100 @@ def _snapshot_path(target: str, snapshot_id: str) -> Path | None:
     return _snapshot_dir(target) / f"{snapshot_id}.json"
 
 
-def load_target_state(target: str, snapshot_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+def _candidate_state_paths(
+    target: str,
+    *,
+    snapshot_id: Optional[str] = None,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
+) -> list[Path | None]:
+    paths: list[Path | None] = []
+    if run_context is not None:
+        if snapshot_id:
+            if SNAPSHOT_ID_PATTERN.fullmatch(snapshot_id):
+                paths.append(run_context.snapshot_path(snapshot_id, target_model))
+        else:
+            paths.append(run_context.state_path(target_model))
+
     if snapshot_id:
-        path = _snapshot_path(target, snapshot_id)
-        if path is None:
-            return None
+        paths.append(_snapshot_path(target, snapshot_id))
+        paths.append(_indexed_state_path(target, snapshot_id=snapshot_id))
+        legacy_snapshot = _legacy_snapshot_path(target, snapshot_id)
+        if legacy_snapshot != paths[-2]:
+            paths.append(legacy_snapshot)
     else:
-        path = _target_path(target)
-    if not path.exists():
+        paths.append(_target_path(target))
+        paths.append(_indexed_state_path(target))
+        legacy_path = _legacy_target_path(target)
+        if legacy_path != paths[0]:
+            paths.append(legacy_path)
+    return _unique_paths(paths)
+
+
+def _legacy_snapshot_path(target: str, snapshot_id: str) -> Path | None:
+    if not SNAPSHOT_ID_PATTERN.fullmatch(snapshot_id):
         return None
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(raw, dict):
-        raw.setdefault("schema_version", TARGET_STATE_SCHEMA_VERSION)
-    return raw
+    return _legacy_target_dir(target) / "snapshots" / f"{snapshot_id}.json"
+
+
+def _indexed_state_path(target: str | Target, snapshot_id: Optional[str] = None) -> Path | None:
+    index_path = _index_path(target)
+    if not index_path.exists():
+        return None
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(index, dict):
+        return None
+    run_dir_value = index.get("run_dir")
+    target_id = str(index.get("target_id") or "")
+    if not run_dir_value or not target_id:
+        return None
+    state_dir = Path(str(run_dir_value)) / "targets" / target_id / "state"
+    if snapshot_id:
+        if not SNAPSHOT_ID_PATTERN.fullmatch(snapshot_id):
+            return None
+        return state_dir / "snapshots" / f"{snapshot_id}.json"
+    return state_dir / "current.json"
+
+
+def _unique_paths(paths: list[Path | None]) -> list[Path | None]:
+    seen: set[str] = set()
+    unique: list[Path | None] = []
+    for path in paths:
+        if path is None:
+            unique.append(None)
+            continue
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
+
+
+def load_target_state(
+    target: str,
+    snapshot_id: Optional[str] = None,
+    *,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
+) -> Optional[dict[str, Any]]:
+    paths = _candidate_state_paths(
+        target,
+        snapshot_id=snapshot_id,
+        run_context=run_context,
+        target_model=target_model,
+    )
+    for path in paths:
+        if path is None or not path.exists():
+            continue
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            raw.setdefault("schema_version", TARGET_STATE_SCHEMA_VERSION)
+            return raw
+    return None
 
 
 def save_target_state(
@@ -79,12 +191,28 @@ def save_target_state(
     command: str,
     session_file: Optional[str] = None,
     runtime: Any | None = None,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
+    checkpoint_reason: str = "checkpoint",
+    merge_existing: bool = True,
+    update_index: bool = True,
 ) -> Path:
-    path = _target_path(target)
+    model = target_model or _target_model(target)
+    path = run_context.state_path(model) if run_context is not None else _target_path(model.raw)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    existing = load_target_state(target)
+    existing = (
+        load_target_state(
+            target,
+            run_context=run_context,
+            target_model=model if run_context is not None else None,
+        )
+        if merge_existing
+        else None
+    )
     raw = session.model_dump(mode="json")
+    raw["target"] = raw.get("target") or model.raw
+    raw["target_model"] = model.to_manifest()
     raw["schema_version"] = TARGET_STATE_SCHEMA_VERSION
     if existing:
         raw = _merge_target_state(existing, raw)
@@ -130,24 +258,48 @@ def save_target_state(
         "low_value_rounds": plan.get("low_value_rounds", 0),
     }
 
-    path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
-
     snapshot_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + f"_{command}"
     raw["resume_meta"]["snapshot_id"] = snapshot_id
-    snapshots = _snapshot_dir(target)
+    raw["resume_meta"]["checkpoint_reason"] = checkpoint_reason
+    if run_context is not None:
+        raw["resume_meta"]["run_name"] = run_context.run_name
+        raw["resume_meta"]["run_dir"] = str(run_context.run_dir)
+        raw["resume_meta"]["target_id"] = model.target_id
+
+    if run_context is not None:
+        snapshots = run_context.state_dir(model) / "snapshots"
+    else:
+        snapshots = _snapshot_dir(model.raw)
     snapshots.mkdir(parents=True, exist_ok=True)
-    (snapshots / f"{snapshot_id}.json").write_text(
-        json.dumps(raw, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(path, raw)
+    atomic_write_json(snapshots / f"{snapshot_id}.json", raw)
+
+    if run_context is not None:
+        atomic_write_json(run_context.target_json_path(model), model.to_manifest())
+        if update_index:
+            _write_index_mirror(model, run_context, snapshot_id)
+        run_context.record_checkpoint(
+            snapshot_id,
+            reason=checkpoint_reason,
+            target_id=model.target_id,
+        )
 
     return path
 
 
 def get_target_state_preview(
-    target: str, snapshot_id: Optional[str] = None
+    target: str,
+    snapshot_id: Optional[str] = None,
+    *,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
 ) -> Optional[dict[str, Any]]:
-    raw = load_target_state(target, snapshot_id=snapshot_id)
+    raw = load_target_state(
+        target,
+        snapshot_id=snapshot_id,
+        run_context=run_context,
+        target_model=target_model,
+    )
     if not raw:
         return None
 
@@ -249,9 +401,18 @@ def diff_target_state_snapshots(
 
 
 def hydrate_session_from_target_state(
-    target: str, snapshot_id: Optional[str] = None
+    target: str,
+    snapshot_id: Optional[str] = None,
+    *,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
 ) -> Optional[SessionState]:
-    raw = load_target_state(target, snapshot_id=snapshot_id)
+    raw = load_target_state(
+        target,
+        snapshot_id=snapshot_id,
+        run_context=run_context,
+        target_model=target_model,
+    )
     if not raw:
         return None
 
@@ -268,13 +429,31 @@ def hydrate_session_from_target_state(
 
 
 def apply_target_state_to_agent(
-    agent: Any, target: str, snapshot_id: Optional[str] = None
+    agent: Any,
+    target: str,
+    snapshot_id: Optional[str] = None,
+    *,
+    run_context: RunContext | None = None,
+    target_model: Target | None = None,
 ) -> SessionRestoreResult:
     """Restore a target state into an agent and return a structured restore result."""
-    restored_state = hydrate_session_from_target_state(target, snapshot_id=snapshot_id)
+    restored_state = hydrate_session_from_target_state(
+        target,
+        snapshot_id=snapshot_id,
+        run_context=run_context,
+        target_model=target_model,
+    )
     if restored_state:
         agent.context.state = restored_state
-        preview = get_target_state_preview(target, snapshot_id=snapshot_id) or {}
+        preview = (
+            get_target_state_preview(
+                target,
+                snapshot_id=snapshot_id,
+                run_context=run_context,
+                target_model=target_model,
+            )
+            or {}
+        )
         return SessionRestoreResult(
             restored=True,
             target=restored_state.target or target,
@@ -331,7 +510,12 @@ def build_task_session_summary(
 
 
 def list_target_snapshots(target: str) -> list[dict[str, Any]]:
-    snapshots = _snapshot_dir(target)
+    indexed_current = _indexed_state_path(target)
+    snapshots = (
+        indexed_current.parent / "snapshots"
+        if indexed_current is not None
+        else _snapshot_dir(target)
+    )
     if not snapshots.exists():
         return []
 
@@ -358,9 +542,10 @@ def rollback_target_state(target: str, snapshot_id: str) -> Optional[Path]:
     raw = load_target_state(target, snapshot_id=snapshot_id)
     if not raw:
         return None
-    path = _target_path(target)
+    indexed_current = _indexed_state_path(target)
+    path = indexed_current if indexed_current is not None else _target_path(target)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(path, raw)
     return path
 
 
@@ -370,6 +555,77 @@ def clear_target_state(target: str) -> bool:
         return False
     shutil.rmtree(target_dir, ignore_errors=True)
     return True
+
+
+def legacy_target_state_exists(target: str, target_model: Target | None = None) -> bool:
+    model = target_model or _target_model(target)
+    legacy_dir = _legacy_target_dir(target)
+    return model.state_key != _legacy_target_key(target) and (legacy_dir / "state.json").exists()
+
+
+def import_legacy_target_state(
+    target: str,
+    *,
+    run_context: RunContext,
+    target_model: Target | None = None,
+    command: str,
+    runtime: Any | None = None,
+    no_import: bool = False,
+) -> SessionRestoreResult:
+    """Import a raw-hash legacy target state into a run-backed checkpoint."""
+    model = target_model or _target_model(target)
+    legacy_path = _legacy_target_path(target)
+    if not legacy_target_state_exists(target, model) or not legacy_path.exists():
+        return SessionRestoreResult(restored=False, target=target)
+
+    raw = json.loads(legacy_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return SessionRestoreResult(restored=False, target=target)
+    state = SessionState(**raw)
+    state.target = state.target or target
+
+    if no_import:
+        preview = get_target_state_preview(target) or {}
+        return SessionRestoreResult(
+            restored=True,
+            target=state.target or target,
+            phase=_phase_name(state.phase),
+            snapshot_id=str(preview.get("snapshot_id", "")),
+            preview=preview,
+        )
+
+    save_target_state(
+        model.raw,
+        state,
+        command=command,
+        runtime=runtime,
+        run_context=run_context,
+        target_model=model,
+        checkpoint_reason="legacy_import",
+        merge_existing=False,
+    )
+    _make_tree_read_only(legacy_path.parent)
+    run_context.append_event(
+        "legacy_import",
+        {
+            "raw": target,
+            "canonical": model.canonical,
+            "legacy_dir": str(legacy_path.parent),
+            "target_id": model.target_id,
+        },
+    )
+    preview = (
+        get_target_state_preview(model.raw, run_context=run_context, target_model=model) or {}
+    )
+    return SessionRestoreResult(
+        restored=True,
+        target=state.target or target,
+        phase=_phase_name(state.phase),
+        snapshot_id=str(preview.get("snapshot_id", "")),
+        resume_strategy=str(preview.get("resume_strategy", "")),
+        resume_reason=str(preview.get("resume_reason", "")),
+        preview=preview,
+    )
 
 
 def _build_resume_summary(raw: dict[str, Any], resume_meta: dict[str, Any]) -> str:
@@ -605,6 +861,32 @@ def _phase_name(value: Any) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return str(value or "")
+
+
+def _write_index_mirror(model: Target, run_context: RunContext, snapshot_id: str) -> None:
+    atomic_write_json(
+        _index_path(model),
+        {
+            "raw": model.raw,
+            "canonical": model.canonical,
+            "latest_run": run_context.run_name,
+            "run_dir": str(run_context.run_dir),
+            "target_id": model.target_id,
+            "latest_snapshot_id": snapshot_id,
+            "updated_at": datetime.now().isoformat(),
+        },
+    )
+
+
+def _make_tree_read_only(path: Path) -> None:
+    for current, dirs, files in os.walk(path):
+        for dirname in dirs:
+            item = Path(current) / dirname
+            item.chmod(item.stat().st_mode & ~0o222)
+        for filename in files:
+            item = Path(current) / filename
+            item.chmod(item.stat().st_mode & ~0o222)
+    path.chmod(path.stat().st_mode & ~0o222)
 
 
 def _manual_review_count(findings: list[dict[str, Any]]) -> int:

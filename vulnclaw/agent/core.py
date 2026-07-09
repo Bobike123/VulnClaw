@@ -38,8 +38,9 @@ from vulnclaw.agent.loop_controller import auto_pentest as run_auto_pentest
 from vulnclaw.agent.loop_controller import persistent_pentest as run_persistent_pentest
 from vulnclaw.agent.prompt_context import build_round_context, generate_attack_summary
 from vulnclaw.agent.recon_tracker import update_recon_dimension_completion
+from vulnclaw.agent.roles import role_prompt_block
 from vulnclaw.agent.runtime_state import AgentResult, PersistentCycleResult, RuntimeState
-from vulnclaw.agent.skill_context import get_active_skill_context
+from vulnclaw.agent.skill_context import apply_skill_selection
 from vulnclaw.agent.system_prompt import build_dynamic_system_prompt
 from vulnclaw.agent.tool_call_manager import safe_parse_tool_args
 from vulnclaw.config.schema import VulnClawConfig
@@ -61,6 +62,7 @@ class AgentCore:
         self.config = config
         self.mcp_manager = mcp_manager
         self.context = ContextManager()
+        self.active_role: str | None = None
         self._client = None
         # Failover key pool: prefer llm.api_keys, else the single llm.api_key.
         self._key_pool = config.llm.key_pool()
@@ -362,7 +364,7 @@ class AgentCore:
 
         kb_context = self._build_kb_context(user_input)
 
-        return build_dynamic_system_prompt(
+        prompt = build_dynamic_system_prompt(
             target=target or self.context.state.target,
             phase=phase,
             skill_context=skill_context,
@@ -373,9 +375,16 @@ class AgentCore:
             kb_context=kb_context,
             task_constraints=self.context.state.task_constraints,
         )
+        active_role_prompt = role_prompt_block(self.active_role)
+        if active_role_prompt:
+            prompt = f"{prompt}\n\n{active_role_prompt}"
+        return prompt
 
     def _get_active_skill_context(self, user_input: Optional[str] = None) -> Optional[str]:
-        return get_active_skill_context(user_input)
+        # Resolve the bundle once, record its provenance on the session (so
+        # findings created this turn inherit it), and return the same bundle's
+        # context. All derivation lives in the skill_context helper.
+        return apply_skill_selection(self.context.state, user_input)
 
     def _build_kb_context(self, user_input: Optional[str] = None) -> str:
         return build_kb_context(self, user_input)
@@ -471,9 +480,27 @@ class AgentCore:
         on_step: Optional[Callable[[int, AgentResult], None]] = None,
         *,
         stream_sink: Optional["StreamSink"] = None,
+        engine: Optional[str] = None,
     ) -> list[AgentResult]:
         """Autonomous penetration test loop."""
-        return await run_auto_pentest(self, user_input, target, max_rounds, on_step, stream_sink=stream_sink)
+        selected_engine = engine or getattr(self.config.session, "engine", "solve")
+        if selected_engine == "team":
+            from vulnclaw.agent.team import run_team_pentest
+
+            await run_team_pentest(
+                self,
+                user_input=user_input,
+                target=target,
+                max_steps=getattr(self.config.session, "solve_max_steps", max_rounds),
+                max_intents=getattr(self.config.session, "solve_max_intents", 3),
+                max_tool_rounds=getattr(self.config.session, "solve_max_tool_rounds", 4),
+                max_parallel=getattr(self.config.session, "solve_max_parallel", 3),
+                stream_sink=stream_sink,
+            )
+            return []
+        return await run_auto_pentest(
+            self, user_input, target, max_rounds, on_step, stream_sink=stream_sink
+        )
 
     def _build_round_context(self, round_num: int, max_rounds: int) -> str:
         """Build context string for the current round in auto loop."""
@@ -606,7 +633,7 @@ class AgentCore:
 
     def _build_openai_tools(self) -> list[dict]:
         """Build OpenAI function calling schema from MCP tools + built-in tools."""
-        return build_openai_tools(self.mcp_manager)
+        return build_openai_tools(self.mcp_manager, active_role=self.active_role)
 
     # ── Python code executor ─────────────────────────────────────────
 

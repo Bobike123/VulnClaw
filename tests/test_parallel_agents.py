@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from vulnclaw.agent.agent_graph import AgentGraph, AgentOutcome, AgentStatus, FanOutCaps
 from vulnclaw.agent.context import SessionState, VulnerabilityFinding
 from vulnclaw.agent.parallel_agents import extract_attack_surfaces, run_parallel_pentest
 
@@ -105,3 +106,80 @@ async def test_run_parallel_pentest_fans_out_and_merges_worker_state():
     assert len(root.session_state.findings) == 2
     assert root.session_state.notes == ["worker note"]
     assert all("Investigate this surface only" in child.calls[0] for child in children)
+
+
+@pytest.mark.asyncio
+async def test_surface_wave_strategy_drives_agent_graph(tmp_path):
+    root = FakeAgent()
+
+    def factory():
+        return FakeAgent()
+
+    graph = AgentGraph(
+        tmp_path / "agents",
+        caps=FanOutCaps(max_concurrent=2, max_total=10, max_depth=1),
+    )
+
+    result = await run_parallel_pentest(
+        root,
+        agent_factory=factory,
+        user_input="Perform an authorized fast network scan against 192.168.1.0/24.",
+        target="192.168.1.0/24",
+        discovery_rounds=1,
+        worker_rounds=2,
+        max_agents=2,
+        max_depth=1,
+        graph=graph,
+    )
+
+    # Existing callers still get the same fan-out result.
+    assert result.waves_completed == 1
+    assert len(root.session_state.findings) == 2
+
+    # The graph is now the durable source of truth: root + one node per surface.
+    snapshot = graph.view_graph()
+    assert snapshot.root_id == graph.root_id
+    worker_nodes = [n for n in snapshot.nodes if n.parent_id == graph.root_id]
+    assert len(worker_nodes) == 2
+
+    # merge_session_state ran as the child-finish hook → children finished.
+    assert all(n.status == AgentStatus.DONE for n in worker_nodes)
+    assert all(n.outcome == AgentOutcome.FINISHED for n in worker_nodes)
+
+    # Every child done → root_finish accepted (fail-loud rule satisfied).
+    root_node = graph.get_node(graph.root_id)
+    assert root_node.status == AgentStatus.DONE
+    assert root_node.outcome == AgentOutcome.FINISHED
+
+
+@pytest.mark.asyncio
+async def test_surface_wave_strategy_honors_max_total_cap(tmp_path):
+    root = FakeAgent()
+
+    def factory():
+        return FakeAgent()
+
+    # max_total=2 leaves room for the root + exactly one worker; the second
+    # surface's create_agent is rejected and that child must not run.
+    graph = AgentGraph(
+        tmp_path / "agents",
+        caps=FanOutCaps(max_concurrent=2, max_total=2, max_depth=1),
+    )
+
+    await run_parallel_pentest(
+        root,
+        agent_factory=factory,
+        user_input="Perform an authorized fast network scan against 192.168.1.0/24.",
+        target="192.168.1.0/24",
+        discovery_rounds=1,
+        worker_rounds=2,
+        max_agents=2,
+        max_depth=1,
+        graph=graph,
+    )
+
+    snapshot = graph.view_graph()
+    worker_nodes = [n for n in snapshot.nodes if n.parent_id == graph.root_id]
+    assert len(worker_nodes) == 1  # second surface rejected by max_total
+    assert len(root.session_state.findings) == 1  # rejected child never merged
+    assert graph.get_node(graph.root_id).outcome == AgentOutcome.FINISHED

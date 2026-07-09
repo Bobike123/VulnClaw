@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Literal, Optional
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -26,16 +27,57 @@ class PentestPhase(str, Enum):
     REPORTING = "报告生成"
 
 
+# Typed evidence-reference kinds. ``sandbox_output`` refs land under
+# ``evidence/sandbox/`` (produced by the sandbox PRD), ``http_capture`` refs are
+# resolved against the traffic store via ``request_id`` (traffic-store PRD), and
+# ``file`` refs point at any other artifact inside the per-run ``evidence/`` tree.
+EvidenceKind = Literal["sandbox_output", "http_capture", "file"]
+
+
+class EvidenceRef(BaseModel):
+    """A typed pointer from a finding into the per-run ``evidence/`` tree.
+
+    ``path`` is always relative to that tree so evidence stays portable across
+    machines. ``request_id`` is the optional hook a traffic store resolves an
+    ``http_capture`` against; it is ``None`` for refs that are self-contained
+    files (``sandbox_output`` / ``file``).
+    """
+
+    kind: EvidenceKind = Field(description="sandbox_output | http_capture | file")
+    path: str = Field(default="", description="Path relative to the per-run evidence/ tree")
+    request_id: Optional[str] = Field(
+        default=None, description="Traffic-store request id for http_capture refs"
+    )
+
+
 class VulnerabilityFinding(BaseModel):
     """A single vulnerability finding."""
 
     title: str = Field(description="Vulnerability title")
     severity: str = Field(default="Medium", description="Critical/High/Medium/Low/Info")
     vuln_type: str = Field(default="", description="Vulnerability type (SQLi, XSS, RCE, etc.)")
-    description: str = Field(default="", description="Detailed description")
+    description: str = Field(default="", description="Detailed description (what/where)")
+    impact: str = Field(
+        default="", description="Consequence / business risk (distinct from description)"
+    )
     evidence: str = Field(default="", description="Proof/evidence of the finding")
     cve: Optional[str] = Field(default=None, description="Associated CVE ID")
+    cvss: Optional[float] = Field(default=None, description="CVSS base score (0.0-10.0)")
+    cwe: Optional[str] = Field(default=None, description="CWE identifier, e.g. 'CWE-89'")
     remediation: str = Field(default="", description="Fix recommendation")
+    # ★ Structured location — ties findings to a concrete request/route or code site.
+    target: str = Field(default="", description="Owning target (ties to the Target model)")
+    endpoint: Optional[str] = Field(default=None, description="Affected URL/endpoint")
+    method: Optional[str] = Field(default=None, description="HTTP method, e.g. 'POST'")
+    code_location: Optional[str] = Field(
+        default=None, description="file:line for repo/SAST-style findings"
+    )
+    # ★ Typed evidence references into the per-run evidence/ tree (alongside the
+    # free-text ``evidence`` blob, which is retained for backward compatibility).
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    # ★ Optional skill-loading provenance (reserved by the skill-loading PRD);
+    # mapped into finding metadata / SARIF ``properties`` when present.
+    skill_provenance: Optional[dict[str, Any]] = Field(default=None)
     poc_script: Optional[str] = Field(default=None, description="Generated PoC script path")
     evidence_level: str = Field(default="L1", description="L1-L4 evidence strength")
     lifecycle_status: str = Field(
@@ -55,21 +97,35 @@ class VulnerabilityFinding(BaseModel):
     finding_id: str = Field(default="", description="漏洞唯一标识：vuln_type + target + location")
 
     def model_post_init(self, *args, **kwargs) -> None:
-        # ★ Vulnerability completeness validation
-        # If severity is High/Critical but evidence, vuln_type, remediation are all empty,
-        # this is a placeholder finding — warn but allow it.
-        if self.severity in ("Critical", "High"):
-            if not self.evidence and not self.vuln_type and not self.remediation:
+        # ★ Generate the dedup identity FIRST, from the caller-supplied fields —
+        # before the intake quarantine below rewrites the description. Otherwise the
+        # injected warning text (which contains "/vuln_type/…") is picked up as a
+        # bogus location and every bare finding collides on the same nonsense id.
+        if not self.finding_id:
+            self.finding_id = self._generate_finding_id()
+
+        # ★ Intake quarantine (no hard rejection).
+        # A finding with no evidence, no vuln_type and no remediation carries no
+        # substantiating signal. For ANY severity we prefix the title, annotate the
+        # description, and quarantine it as ``needs_manual_review`` — it stays in run
+        # state / audit trail but is excluded from the report/SARIF gate until an
+        # actual evidence chain is attached. (Previously this fired for High/Critical
+        # only and did not set a lifecycle status.) The whole unit is skipped for a
+        # finding that is already verified/rejected — an explicitly promoted finding
+        # keeps its terminal status and is never re-stamped "[未验证]".
+        is_bare = not self.evidence and not self.vuln_type and not self.remediation
+        is_terminal = self.verified or self.verification_status in ("verified", "rejected")
+        if is_bare and not is_terminal:
+            if not self.title.startswith("[未验证]"):
                 self.title = f"[未验证] {self.title}"
+            if "缺少验证证据" not in self.description:
                 self.description = (
                     "(⚠️ 此漏洞缺少验证证据/vuln_type/修复建议三字段，"
                     "LLM 上报时未附实际测试结果。请补充证据后再作为正式漏洞。)"
                     + (f" {self.description}" if self.description else "")
                 )
+            self.lifecycle_status = "needs_manual_review"
 
-        # ★ 生成唯一标识
-        if not self.finding_id:
-            self.finding_id = self._generate_finding_id()
         self._sync_status_fields()
 
     def _sync_status_fields(self) -> None:
@@ -137,7 +193,12 @@ class VulnerabilityFinding(BaseModel):
         # Use vuln_type as dedup key; location only if non-empty (avoids "SQL注入_")
         if location:
             return f"{self.vuln_type}_{location}"[:50]
-        return self.vuln_type[:50]
+        if self.vuln_type:
+            return self.vuln_type[:50]
+        # Bare finding (no vuln_type, no location): fall back to a title-derived key
+        # so distinct placeholders stay distinct in state / findings.json audit.
+        base_title = re.sub(r"^\[未验证\]\s*", "", self.title).strip()
+        return base_title[:50]
 
     def mark_verified(self, note: str = "", evidence_level: str = "L4") -> None:
         """标记漏洞为已验证."""
@@ -293,6 +354,15 @@ class SessionState(BaseModel):
     # 反思引擎跨周期记忆快照（persistent 模式），存为 dict 以避免与 reflexion 模块循环导入
     reflexion_snapshot: dict[str, Any] = Field(default_factory=dict)
     findings: list[VulnerabilityFinding] = Field(default_factory=list)
+    # ★ Active skill selection for this turn/child task — structured provenance
+    # source. Stored as a plain dict to avoid importing the resolver here.
+    active_skill_selection: Optional[dict[str, Any]] = Field(
+        default=None, description="Active SkillSelection.to_provenance() for the current turn"
+    )
+    # ★ Run events emitted whenever the active skill selection changes.
+    skill_selection_events: list[dict[str, Any]] = Field(
+        default_factory=list, description="Audit log of skill-selection changes"
+    )
     recon_data: dict[str, Any] = Field(default_factory=dict)
     # ★ 原始步骤日志（向后兼容）
     executed_steps: list[str] = Field(default_factory=list)
@@ -318,11 +388,25 @@ class SessionState(BaseModel):
 
     # ★ 漏洞去重追踪（PrivateAttr 不受 Pydantic 字段命名限制）
     _finding_ids_cache: set[str] = PrivateAttr(default_factory=set)
+    _checkpoint_callback: Callable[["SessionState", str], None] | None = PrivateAttr(
+        default=None
+    )
 
     # 语义去重相似度阈值（高于此值视为同一漏洞的不同表述）
     semantic_dedup_threshold: float = Field(
         default=0.75, description="语义去重的相似度阈值（0-1）"
     )
+
+    def set_checkpoint_callback(
+        self, callback: Callable[["SessionState", str], None] | None
+    ) -> None:
+        """Install a persistence callback fired at durable state boundaries."""
+        self._checkpoint_callback = callback
+
+    def _notify_checkpoint(self, reason: str) -> None:
+        if self._checkpoint_callback is None:
+            return
+        self._checkpoint_callback(self, reason)
 
     def add_finding(self, finding: VulnerabilityFinding) -> bool:
         """Add a vulnerability finding with deduplication.
@@ -339,6 +423,10 @@ class SessionState(BaseModel):
             finding._sync_status_fields()
         if not finding.finding_id:
             finding.finding_id = finding._generate_finding_id()
+
+        # Tie the finding to the owning target when the caller didn't set one.
+        if not finding.target and self.target:
+            finding.target = self.target
 
         # 第一层：finding_id 精确去重
         if finding.finding_id in self._finding_ids_cache:
@@ -362,14 +450,68 @@ class SessionState(BaseModel):
                     self._finding_ids_cache.discard(existing.finding_id)
                     self._finding_ids_cache.add(finding.finding_id)
                     self.findings[idx] = finding
+                    self._notify_checkpoint("finding_updated")
                 else:
                     print(f"[DEDUP-SEM] 跳过语义重复漏洞: {finding.title}")
                 return False
 
+        # 附加 skill 溯源（若未显式提供且当前有活跃选择）。深拷贝以免其中的
+        # references_loaded 列表与 active_skill_selection 共享 —— 否则之后
+        # record_loaded_reference() 会追溯性地修改已记录漏洞的溯源。
+        if finding.skill_provenance is None and self.active_skill_selection is not None:
+            finding.skill_provenance = copy.deepcopy(self.active_skill_selection)
+
         # 添加到追踪集合和列表
         self._finding_ids_cache.add(finding.finding_id)
         self.findings.append(finding)
+        self._notify_checkpoint("finding_added")
         return True
+
+    def set_active_skill_selection(self, provenance: Optional[dict[str, Any]]) -> bool:
+        """Record the active skill selection; emit a run event when it changes.
+
+        Args:
+            provenance: A ``SkillSelection.to_provenance()`` dict (or None).
+
+        Returns:
+            True if the selection changed from the previous turn.
+        """
+        prev = self.active_skill_selection
+        changed = (prev or {}).get("primary") != (provenance or {}).get("primary") or (
+            (prev or {}).get("supporting") != (provenance or {}).get("supporting")
+        )
+        # Same bundle as last turn: carry over references already loaded under it
+        # so provenance keeps a complete record across turns.
+        if not changed and prev is not None and provenance is not None:
+            loaded = prev.get("references_loaded")
+            if loaded and not provenance.get("references_loaded"):
+                provenance = {**provenance, "references_loaded": list(loaded)}
+        self.active_skill_selection = provenance
+        if changed:
+            event = {
+                "kind": "skill_selection_changed" if provenance is not None else "skill_selection_cleared",
+                "timestamp": datetime.now().isoformat(),
+                "primary": (provenance or {}).get("primary"),
+                "supporting": (provenance or {}).get("supporting", []),
+                "reason": (provenance or {}).get("reason", ""),
+                "confidence": (provenance or {}).get("confidence", 0.0),
+            }
+            self.skill_selection_events.append(event)
+            self.skill_selection_events = self.skill_selection_events[-50:]
+        return changed
+
+    def record_loaded_reference(self, skill_name: str, ref_name: str) -> None:
+        """Record a reference loaded via ``load_skill_reference`` onto provenance.
+
+        Findings created after this call inherit the reference in their
+        ``skill_provenance['references_loaded']``.
+        """
+        if self.active_skill_selection is None:
+            return
+        entry = f"{skill_name}/{ref_name}" if skill_name else ref_name
+        loaded = self.active_skill_selection.setdefault("references_loaded", [])
+        if entry and entry not in loaded:
+            loaded.append(entry)
 
     def get_verified_findings(self) -> list[VulnerabilityFinding]:
         """获取已验证的漏洞列表.
@@ -495,6 +637,7 @@ class SessionState(BaseModel):
                 detail=detail,
             )
             self.step_records.append(record)
+        self._notify_checkpoint("step_complete")
 
     def get_step_summary(self) -> dict[str, Any]:
         """生成攻击路径摘要.
@@ -869,6 +1012,7 @@ class SessionState(BaseModel):
             result=f"进入{phase.value}阶段",
             status=StepStatus.INFO,
         )
+        self._notify_checkpoint("phase_transition")
 
     def save(self, path: Optional[Path] = None) -> Path:
         """Save session state to JSON file."""

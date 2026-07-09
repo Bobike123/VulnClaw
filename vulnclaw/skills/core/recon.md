@@ -1,6 +1,9 @@
 ---
 name: recon
 description: 信息收集流程 — 被动+主动侦察
+routing:
+  phases: [recon]
+  task_types: [recon]
 ---
 
 # 信息收集 Skill

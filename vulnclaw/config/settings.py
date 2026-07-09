@@ -26,6 +26,7 @@ CONFIG_DIR = Path(os.environ.get("VULNCLAW_CONFIG_DIR", str(Path.home() / ".vuln
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 SESSIONS_DIR = CONFIG_DIR / "sessions"
 TARGETS_DIR = CONFIG_DIR / "targets"
+RUNS_DIR = CONFIG_DIR / "runs"
 KB_DIR = CONFIG_DIR / "kb"
 SKILLS_DIR = CONFIG_DIR / "skills"
 WEB_TASKS_FILE = CONFIG_DIR / "web_tasks.json"
@@ -35,7 +36,7 @@ DEFAULT_OPENAI_USER_AGENT = "Mozilla/5.0"
 
 def ensure_dirs() -> None:
     """Create VulnClaw config directories if they don't exist."""
-    for d in [CONFIG_DIR, SESSIONS_DIR, TARGETS_DIR, KB_DIR, SKILLS_DIR]:
+    for d in [CONFIG_DIR, SESSIONS_DIR, TARGETS_DIR, RUNS_DIR, KB_DIR, SKILLS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -234,6 +235,10 @@ def _overlay_env(config: VulnClawConfig) -> VulnClawConfig:
     # ── Session ──────────────────────────────────────────────────────
     if v := os.environ.get("VULNCLAW_SESSION_OUTPUT_DIR"):
         config.session.output_dir = Path(v)
+    if v := os.environ.get("VULNCLAW_RUNS_DIR"):
+        config.session.runs_dir = Path(v)
+    if v := os.environ.get("VULNCLAW_SESSION_RUNS_DIR"):
+        config.session.runs_dir = Path(v)
     if v := os.environ.get("VULNCLAW_SESSION_AUTO_SAVE"):
         config.session.auto_save = v.lower() in ("1", "true", "yes", "on")
     if v := os.environ.get("VULNCLAW_SESSION_REPORT_FORMAT"):

@@ -60,6 +60,7 @@ VulnClaw 自动执行：
 - **自然语言驱动** — 用人话描述渗透意图，自动识别阶段和工具
 - **13 个 LLM Provider** — OpenAI / Anthropic / MiniMax / DeepSeek / 智谱 / Moonshot / 千问 / SiliconFlow / 豆包 / 百川 / 阶跃星辰 / 商汤 / 零一万物，一键切换
 - **MCP 工具链** — 4 个 MCP 服务：`fetch` / `memory` 本地实现开箱即用，`chrome-devtools` / `burp` 对接外部 MCP 服务实现浏览器自动化和 HTTP 抓包重放
+- **原生流量证据存储** — VulnClaw 自有的抓包存储：按运行内作用域过滤后以追加式 JSONL 索引 + 每请求原始报文落盘于 `evidence/traffic/`。内置 `traffic_list` / `traffic_view` / `traffic_repeat` / `traffic_sitemap` 工具直接读写该存储（`traffic_repeat` 支持带覆盖重放），已验证漏洞的报告直接内联证明它的原始请求/响应。mitmproxy 代理与 Playwright 浏览器捕获后端为可选依赖（`pip install vulnclaw[traffic]`），并按可用性检测启用；其在沙箱运行循环中的自动接入随沙箱/运行目录 PRD 落地。Burp/chrome-devtools 作为可选交互式叠加层归一化进同一存储
 - **AI Agent 核心** — OpenAI 兼容协议 + Tool Calling + 自主渗透循环
 - **结构化推理 + 自适应反思** — 已知事实/约束/攻击链结构化沉淀；失败自动归类并按 L0-L4 渐进升级 payload 绕过策略
 - **漏洞检测插件体系** — 低耦合插件运行时 + 内置只读 Web 插件，结果自动汇入报告链路（`vulnclaw plugins`）

@@ -79,42 +79,35 @@ SKILL_INTENT_MAP: dict[str, list[str]] = {
 
 
 class SkillDispatcher:
-    """Dispatches user input to the most appropriate Skill."""
+    """Dispatches user input to the most appropriate Skill.
+
+    Kept as a thin compatibility layer over the deterministic
+    :class:`~vulnclaw.skills.resolver.SkillResolver`: ``dispatch`` returns the
+    resolver's primary skill for older callers, while :meth:`resolve` exposes
+    the full :class:`~vulnclaw.skills.resolver.SkillSelection` bundle.
+    """
+
+    def resolve(self, user_input: str, **kwargs: Any) -> Any:
+        """Resolve user input into a full :class:`SkillSelection` bundle."""
+        from vulnclaw.skills.resolver import SkillQuery, SkillResolver
+
+        query = SkillQuery.from_input(user_input, **kwargs)
+        return SkillResolver().resolve(query)
 
     def dispatch(self, user_input: str) -> Optional[dict[str, Any]]:
-        """Match user input to a Skill and load it.
+        """Match user input to a Skill and load its primary.
 
         Args:
             user_input: Natural language input from the user.
 
         Returns:
-            Loaded skill dict, or None if no match found.
+            Loaded primary skill dict, or None if no skill matched (unrelated,
+            non-security input no longer auto-injects ``pentest-flow``).
         """
-        input_lower = user_input.lower()
-
-        # Score each skill based on keyword matches
-        scores: dict[str, float] = {}
-
-        for pattern, skill_names in SKILL_INTENT_MAP.items():
-            keywords = pattern.split("|")
-            match_count = sum(1 for kw in keywords if kw in input_lower)
-            if match_count > 0:
-                for skill_name in skill_names:
-                    score = match_count / len(keywords)
-                    # Specialized skills get a 1.5x boost over core skills
-                    # to ensure more specific matches win over generic ones
-                    skill = load_skill_by_name(skill_name)
-                    if skill and skill.get("format") == "directory":
-                        score *= 1.5
-                    scores[skill_name] = scores.get(skill_name, 0) + score
-
-        if not scores:
-            # Default to pentest-flow
-            return load_skill_by_name("pentest-flow")
-
-        # Load the highest-scoring skill
-        best_skill_name = max(scores, key=scores.get)  # type: ignore[arg-type]
-        return load_skill_by_name(best_skill_name)
+        selection = self.resolve(user_input)
+        if selection.primary:
+            return load_skill_by_name(selection.primary)
+        return None
 
     def list_all_skills(self) -> list[dict[str, str]]:
         """List all available skills with name and description."""

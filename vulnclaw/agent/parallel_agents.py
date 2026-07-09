@@ -6,8 +6,9 @@ import asyncio
 import copy
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
+from vulnclaw.agent.agent_graph import AgentGraph, AgentOutcome
 from vulnclaw.agent.context import SessionState, VulnerabilityFinding
 
 
@@ -102,14 +103,27 @@ async def run_parallel_pentest(
     max_depth: int = 1,
     surface_limit: int = 20,
     stream_sink: Any = None,
+    graph: Optional[AgentGraph] = None,
 ) -> ParallelAgentRunResult:
-    """Run a root discovery pass, then fan out bounded child agents by surface."""
+    """Run a root discovery pass, then fan out bounded child agents by surface.
+
+    This is the **surface-wave scheduler strategy**: ``extract_attack_surfaces``
+    plus the bounded semaphore wave. When ``graph`` is supplied it becomes the
+    durable source of truth — the strategy only drives it. Each surface becomes
+    an ``AgentNode`` via ``create_agent``; ``merge_session_state`` runs as the
+    ``child_finish`` reconciliation hook; the root is finished (fail-loud) only
+    once every child is ``done``. Callers that pass no ``graph`` keep the
+    original fire-and-forget behavior unchanged.
+    """
     discovery_rounds = max(1, discovery_rounds)
     worker_rounds = max(1, worker_rounds)
     max_agents = max(1, max_agents)
     max_depth = max(1, max_depth)
 
     summary = ParallelAgentRunResult()
+    if graph is not None and graph.root_id is None:
+        graph.create_root(role="root", task_summary=user_input)
+
     summary.root_results = await root_agent.auto_pentest(
         user_input,
         target=target,
@@ -136,9 +150,13 @@ async def run_parallel_pentest(
             agent_factory=agent_factory,
             surfaces=surfaces,
             worker_rounds=worker_rounds,
+            graph=graph,
         )
         summary.worker_results.extend(worker_results)
         summary.waves_completed = depth
+
+    if graph is not None:
+        graph.root_finish()
 
     return summary
 
@@ -149,20 +167,52 @@ async def _run_surface_wave(
     agent_factory: AgentFactory,
     surfaces: list[AttackSurface],
     worker_rounds: int,
+    graph: Optional[AgentGraph] = None,
 ) -> list[Any]:
-    semaphore = asyncio.Semaphore(max(1, len(surfaces)))
+    # When a graph drives the wave its concurrency cap is the real gate, so the
+    # semaphore mirrors max_concurrent — the graph is the source of truth, not
+    # cosmetic bookkeeping. Without a graph, keep the original per-wave sizing.
+    slots = graph.caps.max_concurrent if graph is not None else len(surfaces)
+    semaphore = asyncio.Semaphore(max(1, slots))
 
     async def _run_one(surface: AttackSurface) -> Any:
         async with semaphore:
+            node_id: Optional[str] = None
+            if graph is not None and graph.root_id is not None:
+                created = graph.create_agent(
+                    graph.root_id,
+                    role="worker",
+                    task_summary=f"{surface.kind}:{surface.target}",
+                )
+                if not created.accepted:
+                    # A cap (max_total / max_depth) rejected this surface — the
+                    # graph already logged it; don't run an untracked child.
+                    return {"surface": surface, "results": None, "rejected": created.reason}
+                node_id = created.node.id
+
             child = agent_factory()
             _seed_child_session(child.session_state, root_agent.session_state, surface)
             prompt = _surface_prompt(surface, root_agent.session_state)
-            result = await child.auto_pentest(
-                prompt,
-                target=root_agent.session_state.target,
-                max_rounds=worker_rounds,
-            )
-            merge_session_state(root_agent.session_state, child.session_state)
+
+            def _merge() -> None:
+                merge_session_state(root_agent.session_state, child.session_state)
+
+            try:
+                result = await child.auto_pentest(
+                    prompt,
+                    target=root_agent.session_state.target,
+                    max_rounds=worker_rounds,
+                )
+            except Exception as exc:  # noqa: BLE001 - a crashed child must fail loud in the graph
+                if graph is not None and node_id is not None:
+                    graph.child_finish(node_id, outcome=AgentOutcome.FAILED, error=str(exc))
+                raise
+
+            if graph is not None and node_id is not None:
+                # merge_session_state is the child-finish reconciliation hook.
+                graph.child_finish(node_id, hook=_merge)
+            else:
+                _merge()
             return {"surface": surface, "results": result}
 
     return await asyncio.gather(*(_run_one(surface) for surface in surfaces))
@@ -196,6 +246,8 @@ def merge_session_state(parent: SessionState, child: SessionState) -> None:
     for record in child.step_records:
         if record not in parent.step_records:
             parent.step_records.append(record)
+
+    parent._notify_checkpoint("child_agent_finish")
 
 
 def _seed_child_session(child: SessionState, parent: SessionState, surface: AttackSurface) -> None:

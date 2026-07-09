@@ -676,6 +676,14 @@ class VulnerabilityVerifier:
                 finding.evidence = vf.verified_evidence
                 finding.description = vf.verified_description
                 finding.severity = vf.verified_severity
+                # Stamp verification state so the produced finding passes the
+                # report/SARIF/findings.json inclusion gate (verification_status
+                # == "verified"), recording the actual PoC execution time.
+                finding.mark_verified(
+                    note=vf.verified_evidence[:200], evidence_level="L4"
+                )
+                if vf.poc_executed_at:
+                    finding.verified_at = vf.poc_executed_at
                 result.append(finding)
 
         return result
