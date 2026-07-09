@@ -43,11 +43,10 @@ class EvidenceRef(BaseModel):
     """
 
     kind: EvidenceKind = Field(description="sandbox_output | http_capture | file")
-    path: str = Field(description="Path relative to the per-run evidence/ tree")
+    path: str = Field(default="", description="Path relative to the per-run evidence/ tree")
     request_id: Optional[str] = Field(
         default=None, description="Traffic-store request id for http_capture refs"
     )
-    note: str = Field(default="", description="Optional human note about this evidence")
 
 
 class VulnerabilityFinding(BaseModel):
@@ -95,11 +94,6 @@ class VulnerabilityFinding(BaseModel):
 
     # ★ 漏洞唯一标识（用于去重）
     finding_id: str = Field(default="", description="漏洞唯一标识：vuln_type + target + location")
-
-    # ★ 结构化证据引用（http_capture 等），报告生成时内联原始请求/响应
-    evidence_refs: list[EvidenceRef] = Field(
-        default_factory=list, description="Structured evidence references (e.g. http_capture)"
-    )
 
     def model_post_init(self, *args, **kwargs) -> None:
         # ★ Generate the dedup identity FIRST, from the caller-supplied fields —
