@@ -29,7 +29,7 @@ from vulnclaw.skills.loader import (
     list_specialized_skills,
     load_skill_by_name,
 )
-from vulnclaw.skills.routing import SkillRouting, normalize_token
+from vulnclaw.skills.routing import SkillRouting, keyword_present, normalize_token
 
 # ── Scoring weights ─────────────────────────────────────────────────
 
@@ -313,7 +313,7 @@ class SkillResolver:
         # Routing free-text aliases matched as substrings.
         alias = 0.0
         for token in r.aliases:
-            if token and token in combined:
+            if keyword_present(token, combined):
                 alias += ALIAS_META_WEIGHT
                 signals.append(f"alias:{token}")
 
@@ -341,7 +341,7 @@ class SkillResolver:
             if profile.name not in skill_names:
                 continue
             keywords = pattern.split("|")
-            match_count = sum(1 for kw in keywords if kw and kw in combined)
+            match_count = sum(1 for kw in keywords if keyword_present(kw, combined))
             if match_count:
                 score += (match_count / len(keywords)) * boost
         return score

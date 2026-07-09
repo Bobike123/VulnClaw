@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from datetime import datetime
@@ -384,9 +385,11 @@ class SessionState(BaseModel):
                     print(f"[DEDUP-SEM] 跳过语义重复漏洞: {finding.title}")
                 return False
 
-        # 附加 skill 溯源（若未显式提供且当前有活跃选择）
+        # 附加 skill 溯源（若未显式提供且当前有活跃选择）。深拷贝以免其中的
+        # references_loaded 列表与 active_skill_selection 共享 —— 否则之后
+        # record_loaded_reference() 会追溯性地修改已记录漏洞的溯源。
         if finding.skill_provenance is None and self.active_skill_selection is not None:
-            finding.skill_provenance = dict(self.active_skill_selection)
+            finding.skill_provenance = copy.deepcopy(self.active_skill_selection)
 
         # 添加到追踪集合和列表
         self._finding_ids_cache.add(finding.finding_id)

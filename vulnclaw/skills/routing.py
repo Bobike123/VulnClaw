@@ -12,6 +12,7 @@ warnings, so an unknown enum token fails CI rather than silently mis-routing.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 
 from pydantic import BaseModel, Field, model_validator
@@ -223,6 +224,21 @@ _ALIASES: dict[str, str] = {
     "type_confusion": "type_juggling",
     "弱类型": "type_juggling",
 }
+
+
+def keyword_present(keyword: str, text: str) -> bool:
+    """Whether ``keyword`` occurs in already-lowercased ``text``.
+
+    ASCII abbreviations (``rce``, ``xss``, ``php`` …) require alphanumeric
+    boundaries so ``rce`` doesn't fire inside ``source`` nor ``java`` inside
+    ``javascript``. Non-ASCII phrases (Chinese) keep plain substring matching,
+    where word boundaries do not apply.
+    """
+    if not keyword:
+        return False
+    if keyword.isascii():
+        return re.search(rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])", text) is not None
+    return keyword in text
 
 
 def normalize_token(value: str) -> str:

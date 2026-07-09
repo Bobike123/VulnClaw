@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from vulnclaw.skills.loader import load_skill_by_name
 from vulnclaw.skills.resolver import SkillQuery, SkillResolver, SkillSelection
-from vulnclaw.skills.routing import normalize_token
+from vulnclaw.skills.routing import keyword_present, normalize_token
 
 # Internal (Chinese) phase labels → resolver's canonical phase tokens. The IDLE
 # label is intentionally absent so "not started" contributes no phase signal.
@@ -86,7 +86,7 @@ def _extract_vuln_hints(text: str) -> list[str]:
     low = text.lower()
     hints: list[str] = []
     for keyword, token in _VULN_HINT_KEYWORDS.items():
-        if keyword in low and token not in hints:
+        if token not in hints and keyword_present(keyword, low):
             hints.append(token)
     return hints
 
@@ -95,7 +95,7 @@ def _extract_technologies(text: str, recon_data: Optional[dict[str, Any]]) -> li
     low = text.lower()
     techs: list[str] = []
     for keyword in _TECH_KEYWORDS:
-        if keyword in low:
+        if keyword_present(keyword, low):
             token = normalize_token(keyword)
             if token not in techs:
                 techs.append(token)

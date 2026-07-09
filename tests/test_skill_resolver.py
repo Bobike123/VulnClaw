@@ -328,6 +328,36 @@ class TestRuntimeWiring:
         # The recorded reason is embedded in the very context that was returned.
         assert state.active_skill_selection["reason"].split(" ")[0] in ctx
 
+    def test_ascii_vuln_hint_requires_token_boundary(self):
+        """`rce` must not fire inside `source` (non-security input stays clean)."""
+        from vulnclaw.agent.skill_context import (
+            _extract_vuln_hints,
+            get_active_skill_context,
+        )
+
+        assert _extract_vuln_hints("show me the source code") == []
+        assert _extract_vuln_hints("test for rce here") == ["rce"]
+        assert get_active_skill_context("show me the source code") is None
+
+    def test_ascii_tech_keyword_requires_token_boundary(self):
+        from vulnclaw.agent.skill_context import _extract_technologies
+
+        # "java" must not match inside "javascript".
+        assert "java" not in _extract_technologies("a javascript app", None)
+        assert "java" in _extract_technologies("a java app", None)
+
+    def test_finding_provenance_not_mutated_by_later_reference(self):
+        """A reference loaded after a finding must not rewrite its provenance."""
+        from vulnclaw.agent.context import VulnerabilityFinding
+        from vulnclaw.agent.skill_context import apply_skill_selection
+
+        state, _ = self._state()
+        apply_skill_selection(state, "对这个APP做逆向分析")
+        state.add_finding(VulnerabilityFinding(title="A", vuln_type="Recon", evidence="e"))
+        # Reference loaded AFTER the finding was recorded.
+        state.record_loaded_reference("client-reverse", "02-client-api-reverse-and-burp.md")
+        assert state.findings[0].skill_provenance["references_loaded"] == []
+
     def test_non_security_input_records_no_selection(self):
         from vulnclaw.agent.skill_context import apply_skill_selection
 
