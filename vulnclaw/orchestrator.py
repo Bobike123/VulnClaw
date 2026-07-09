@@ -278,6 +278,12 @@ def _install_checkpoint_hook(
         a ``current.json`` per entry. Without this, ``--resume-run`` rejects the
         run as corrupt. Seed a fresh session for any secondary target that has
         no state yet so the whole manifest stays resumable.
+
+        The agent loop never drives these targets in this run, so the seed
+        writes only the run-local ``current.json`` and does not touch the global
+        per-target index mirror. That keeps a plain ``load_target_state()`` /
+        default resume for the target pointed at whatever real state it already
+        had, instead of shadowing it with this empty placeholder snapshot.
         """
         for target in secondary_targets:
             if run_context.state_path(target).exists():
@@ -291,6 +297,7 @@ def _install_checkpoint_hook(
                 target_model=target,
                 checkpoint_reason="seed",
                 merge_existing=False,
+                update_index=False,
             )
 
     def checkpoint(reason: str) -> None:

@@ -162,6 +162,29 @@ async def test_multi_target_run_seeds_secondary_state_and_resumes(tmp_path, monk
     from vulnclaw.orchestrator import run_agent_task
 
     monkeypatch.setattr(store, "TARGETS_DIR", tmp_path / "targets")
+    secondary = parse_target("https://secondary.example")
+
+    # The secondary target already has real, run-backed state from a prior run.
+    prior_ctx = create_run_context(
+        command="recon",
+        targets=[secondary],
+        runs_dir=tmp_path / "runs",
+        run_name="prior-secondary-run",
+    )
+    prior_state = SessionState(target=secondary.raw)
+    prior_state.add_step(
+        "prior secondary work", action="probe", target=secondary.raw, result="ok"
+    )
+    store.save_target_state(
+        secondary.raw,
+        prior_state,
+        command="recon",
+        run_context=prior_ctx,
+        target_model=secondary,
+        checkpoint_reason="prior",
+    )
+    index_before = store._index_path(secondary).read_text(encoding="utf-8")
+
     agent = DummyAgent(tmp_path / "runs")
 
     async def runner(shared_agent):
@@ -176,7 +199,7 @@ async def test_multi_target_run_seeds_secondary_state_and_resumes(tmp_path, monk
         agent=agent,
         command="recon",
         target="https://primary.example",
-        additional_targets=["https://secondary.example"],
+        additional_targets=[secondary.raw],
         resume=False,
         runner=runner,
     )
@@ -192,6 +215,13 @@ async def test_multi_target_run_seeds_secondary_state_and_resumes(tmp_path, monk
 
     # Resuming the multi-target run must not raise "target state is missing".
     load_run_context(run_name, runs_dir=tmp_path / "runs")
+
+    # Seeding a never-driven secondary must not clobber its global index/state:
+    # a default load still resolves to the prior run's real work, not the seed.
+    assert store._index_path(secondary).read_text(encoding="utf-8") == index_before
+    preserved = store.load_target_state(secondary.raw)
+    assert preserved is not None
+    assert "prior secondary work" in preserved.get("executed_steps", [])
 
 
 def test_legacy_import_copies_once_and_leaves_legacy_read_only(tmp_path, monkeypatch):

@@ -195,6 +195,7 @@ def save_target_state(
     target_model: Target | None = None,
     checkpoint_reason: str = "checkpoint",
     merge_existing: bool = True,
+    update_index: bool = True,
 ) -> Path:
     model = target_model or _target_model(target)
     path = run_context.state_path(model) if run_context is not None else _target_path(model.raw)
@@ -275,7 +276,8 @@ def save_target_state(
 
     if run_context is not None:
         atomic_write_json(run_context.target_json_path(model), model.to_manifest())
-        _write_index_mirror(model, run_context, snapshot_id)
+        if update_index:
+            _write_index_mirror(model, run_context, snapshot_id)
         run_context.record_checkpoint(
             snapshot_id,
             reason=checkpoint_reason,
