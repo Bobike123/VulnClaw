@@ -11,7 +11,7 @@ from typing import Any, Optional
 class I18nLoader:
     """Load and manage translations."""
 
-    def __init__(self, lang: str = "zh") -> None:
+    def __init__(self, lang: str = "en") -> None:
         self.lang = lang
         self.translations: dict[str, str] = {}
         self.logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class I18nLoader:
         Priority:
         1. VULNCLAW_LANG environment variable
         2. LANG environment variable
-        3. Default to 'zh'
+        3. Default to 'en'
         """
         # Check VulnClaw specific env var
         lang_env = os.environ.get("VULNCLAW_LANG", "").lower()
@@ -80,8 +80,8 @@ class I18nLoader:
         elif system_lang.startswith("en"):
             return "en"
 
-        # Default to Chinese for this project
-        return "zh"
+        # Default to English
+        return "en"
 
 
 # Global translator instance

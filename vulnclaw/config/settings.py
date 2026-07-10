@@ -30,13 +30,25 @@ KB_DIR = CONFIG_DIR / "kb"
 SKILLS_DIR = CONFIG_DIR / "skills"
 WEB_TASKS_FILE = CONFIG_DIR / "web_tasks.json"
 PYTHON_EXECUTE_AUDIT_FILE = CONFIG_DIR / "python_execute_audit.jsonl"
+AUDIT_DIR = CONFIG_DIR / "audit"
+AUDIT_LOG_FILE = AUDIT_DIR / "audit.jsonl"
 DEFAULT_OPENAI_USER_AGENT = "Mozilla/5.0"
 
 
 def ensure_dirs() -> None:
-    """Create VulnClaw config directories if they don't exist."""
-    for d in [CONFIG_DIR, SESSIONS_DIR, TARGETS_DIR, KB_DIR, SKILLS_DIR]:
+    """Create VulnClaw config directories if they don't exist.
+
+    The top-level config dir holds secrets (config.yaml) and the audit trail, so
+    it is kept owner-only (0700 on POSIX).
+    """
+    for d in [CONFIG_DIR, SESSIONS_DIR, TARGETS_DIR, KB_DIR, SKILLS_DIR, AUDIT_DIR]:
         d.mkdir(parents=True, exist_ok=True)
+    try:
+        from vulnclaw.safety.credentials import harden_dir_permissions
+
+        harden_dir_permissions(CONFIG_DIR)
+    except Exception:
+        pass
 
 
 def openai_default_headers() -> dict[str, str]:
@@ -90,13 +102,23 @@ def load_config() -> VulnClawConfig:
 
 
 def save_config(config: VulnClawConfig) -> None:
-    """Save configuration to YAML file."""
+    """Save configuration to YAML file.
+
+    The config file holds API keys, so it is written owner-only (0600 on POSIX)
+    to keep secrets from leaking to other local accounts on a shared host.
+    """
     ensure_dirs()
     raw = config.model_dump(mode="json")
     # Remove default values to keep config clean
     _strip_defaults(raw)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
+    try:
+        from vulnclaw.safety.credentials import harden_file_permissions
+
+        harden_file_permissions(CONFIG_FILE)
+    except Exception:
+        pass
 
 
 def set_config_value(key: str, value: str) -> None:
@@ -304,6 +326,78 @@ def _overlay_env(config: VulnClawConfig) -> VulnClawConfig:
             config.safety.python_execute_max_output_chars = int(v)
     if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_AUDIT_ENABLED"):
         config.safety.python_execute_audit_enabled = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_ALLOW_NETWORK"):
+        config.safety.python_execute_allow_network = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_REQUIRE_CONFIRMATION"):
+        config.safety.python_execute_require_confirmation = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_TIMEOUT_SECONDS"):
+        with suppress(ValueError):
+            config.safety.python_execute_timeout_seconds = int(v)
+    if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_MAX_MEMORY_MB"):
+        with suppress(ValueError):
+            config.safety.python_execute_max_memory_mb = int(v)
+    if v := os.environ.get("VULNCLAW_SAFETY_PYTHON_EXECUTE_MAX_FILE_SIZE_MB"):
+        with suppress(ValueError):
+            config.safety.python_execute_max_file_size_mb = int(v)
+
+    # ── Scope enforcement ────────────────────────────────────────────
+    if v := os.environ.get("VULNCLAW_SCOPE_ENFORCE"):
+        config.scope.enforce = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SCOPE_FILE"):
+        config.scope.scope_file = v
+    if v := os.environ.get("VULNCLAW_SCOPE_ALLOW_LOCALHOST"):
+        config.scope.allow_localhost = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SCOPE_ALLOW_PRIVATE_LAB"):
+        config.scope.allow_private_lab = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_SCOPE_ALLOW_PUBLIC"):
+        config.scope.allow_public = v.lower() in ("1", "true", "yes", "on")
+
+    # ── Audit logging ────────────────────────────────────────────────
+    if v := os.environ.get("VULNCLAW_AUDIT_ENABLED"):
+        config.audit.enabled = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_AUDIT_HASH_CHAIN"):
+        config.audit.hash_chain = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_AUDIT_DIR"):
+        config.audit.audit_dir = v
+
+    # ── Approval gates ───────────────────────────────────────────────
+    if v := os.environ.get("VULNCLAW_APPROVAL_REQUIRE"):
+        config.approval.require_approval = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_APPROVAL_MODE"):
+        config.approval.mode = v
+    if v := os.environ.get("VULNCLAW_APPROVAL_FILE"):
+        config.approval.approval_file = v
+
+    # ── Risky tools (all default-deny) ───────────────────────────────
+    for field_name, env_name in {
+        "enable_exploit": "VULNCLAW_RISKY_ENABLE_EXPLOIT",
+        "enable_post_exploitation": "VULNCLAW_RISKY_ENABLE_POST_EXPLOITATION",
+        "enable_waf_bypass": "VULNCLAW_RISKY_ENABLE_WAF_BYPASS",
+        "enable_persistent": "VULNCLAW_RISKY_ENABLE_PERSISTENT",
+        "enable_poc_generation": "VULNCLAW_RISKY_ENABLE_POC_GENERATION",
+        "enable_js_secret_extraction": "VULNCLAW_RISKY_ENABLE_JS_SECRET_EXTRACTION",
+        "enable_osint": "VULNCLAW_RISKY_ENABLE_OSINT",
+        "enable_brute_force": "VULNCLAW_RISKY_ENABLE_BRUTE_FORCE",
+        "enable_browser": "VULNCLAW_RISKY_ENABLE_BROWSER",
+        "enable_request_mutation": "VULNCLAW_RISKY_ENABLE_REQUEST_MUTATION",
+    }.items():
+        if v := os.environ.get(env_name):
+            setattr(config.risky_tools, field_name, v.lower() in ("1", "true", "yes", "on"))
+
+    # ── Persistent-mode budgets / emergency stop ─────────────────────
+    if v := os.environ.get("VULNCLAW_BUDGET_ENABLED"):
+        config.budget.enabled = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_BUDGET_MAX_DURATION_MINUTES"):
+        with suppress(ValueError):
+            config.budget.max_duration_minutes = int(v)
+    if v := os.environ.get("VULNCLAW_BUDGET_MAX_CYCLES"):
+        with suppress(ValueError):
+            config.budget.max_cycles = int(v)
+    if v := os.environ.get("VULNCLAW_BUDGET_MAX_TOOL_CALLS"):
+        with suppress(ValueError):
+            config.budget.max_tool_calls = int(v)
+    if v := os.environ.get("VULNCLAW_BUDGET_EMERGENCY_STOP_FILE"):
+        config.budget.emergency_stop_file = v
 
     # ── Recon: space-mapping API keys ────────────────────────────────
     # Accept both the short form (FOFA_KEY) and the prefixed form

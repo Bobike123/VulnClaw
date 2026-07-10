@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from vulnclaw.agent.agent_context import AgentContext
 
 
-RECON_MIN_ROUNDS = 8  # 信息收集阶段最低轮数，低于此数 [DONE] 被忽略
+RECON_MIN_ROUNDS = 8  # Minimum recon-phase rounds; below this, [DONE] is ignored
 
 # ★ Include BOTH tool-result signatures AND natural-language descriptions from notes/confirmed_facts
 RECON_DIM_KEYWORDS: dict[str, list[str]] = {
@@ -98,9 +98,13 @@ RECON_DIM_KEYWORDS: dict[str, list[str]] = {
     "domain": [
         "whois",
         "注册人",
+        "registrant",
         "注册商",
+        "registrar",
         "icp",
         "备案",
+        "icp filing",
+        "filing",
         "子域名",
         "subdomain",
         "dns记录",
@@ -108,18 +112,24 @@ RECON_DIM_KEYWORDS: dict[str, list[str]] = {
         "mx记录",
         "txt记录",
         "证书透明",
+        "certificate transparency",
         "crt.sh",
         "证书信息",
+        "certificate info",
         "ssl证书",
+        "ssl certificate",
         "域名",
         "dns",
         " registr",
         "注册信息",
+        "registration info",
         "icp备案",
         "子域名",
         "子站",
+        "sub-site",
         "crt.sh",
         "证书",
+        "certificate",
     ],
     "personnel": [
         "github_id",
@@ -130,9 +140,13 @@ RECON_DIM_KEYWORDS: dict[str, list[str]] = {
         "twitter",
         "社工",
         "社会工程",
+        "social engineering",
         "人员信息",
+        "personnel info",
         "作者追踪",
+        "author tracking",
         "人物画像",
+        "persona",
     ],
 }
 
@@ -141,7 +155,7 @@ def update_recon_dimension_completion(agent: AgentContext, response: str) -> Non
     """Auto-detect which recon dimensions have been explored.
 
     Uses signal-weighted sources instead of blindly scanning all round text.
-    response 参数保留是为了兼容现有调用签名，但逻辑上不使用原始推理文本。
+    The response parameter is kept for call-signature compatibility but is not used logically (raw reasoning text is ignored).
     """
     note_text = " ".join(agent.context.state.notes[-15:]).lower()
     fact_text = " ".join(getattr(agent.context.state, "confirmed_facts", [])[-15:]).lower()

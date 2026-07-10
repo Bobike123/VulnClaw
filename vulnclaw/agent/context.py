@@ -18,12 +18,25 @@ from vulnclaw.agent.reasoning_state import ReasoningState
 class PentestPhase(str, Enum):
     """Penetration test phases."""
 
-    IDLE = "就绪"
-    RECON = "信息收集"
-    VULN_DISCOVERY = "漏洞发现"
-    EXPLOITATION = "漏洞利用"
-    POST_EXPLOITATION = "后渗透"
-    REPORTING = "报告生成"
+    IDLE = "Ready"
+    RECON = "Recon"
+    VULN_DISCOVERY = "Vulnerability Discovery"
+    EXPLOITATION = "Exploitation"
+    POST_EXPLOITATION = "Post-exploitation"
+    REPORTING = "Reporting"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "PentestPhase | None":
+        """Map legacy Chinese phase values (from older saved sessions) to members."""
+        legacy = {
+            "就绪": cls.IDLE,
+            "信息收集": cls.RECON,
+            "漏洞发现": cls.VULN_DISCOVERY,
+            "漏洞利用": cls.EXPLOITATION,
+            "后渗透": cls.POST_EXPLOITATION,
+            "报告生成": cls.REPORTING,
+        }
+        return legacy.get(value) if isinstance(value, str) else None
 
 
 class VulnerabilityFinding(BaseModel):
@@ -44,15 +57,15 @@ class VulnerabilityFinding(BaseModel):
     )
 
     # ★ 漏洞验证状态追踪
-    verified: bool = Field(default=False, description="是否已通过 PoC 验证")
+    verified: bool = Field(default=False, description="whether it has passed PoC verification")
     verification_status: str = Field(
-        default="pending", description="验证状态: pending/verified/rejected"
+        default="pending", description="verification status: pending/verified/rejected"
     )
-    verified_at: Optional[str] = Field(default=None, description="验证时间")
-    verification_note: str = Field(default="", description="验证备注/排除原因")
+    verified_at: Optional[str] = Field(default=None, description="verification time")
+    verification_note: str = Field(default="", description="verification note / exclusion reason")
 
     # ★ 漏洞唯一标识（用于去重）
-    finding_id: str = Field(default="", description="漏洞唯一标识：vuln_type + target + location")
+    finding_id: str = Field(default="", description="unique finding id: vuln_type + target + location")
 
     def model_post_init(self, *args, **kwargs) -> None:
         # ★ Vulnerability completeness validation
@@ -60,10 +73,10 @@ class VulnerabilityFinding(BaseModel):
         # this is a placeholder finding — warn but allow it.
         if self.severity in ("Critical", "High"):
             if not self.evidence and not self.vuln_type and not self.remediation:
-                self.title = f"[未验证] {self.title}"
+                self.title = f"[unverified] {self.title}"
                 self.description = (
-                    "(⚠️ 此漏洞缺少验证证据/vuln_type/修复建议三字段，"
-                    "LLM 上报时未附实际测试结果。请补充证据后再作为正式漏洞。)"
+                    "(⚠️ This finding is missing the evidence/vuln_type/remediation fields; "
+                    "the LLM reported it without actual test results. Add evidence before treating it as a confirmed vulnerability.)"
                     + (f" {self.description}" if self.description else "")
                 )
 
@@ -165,25 +178,25 @@ class VulnerabilityFinding(BaseModel):
 class StepStatus(str, Enum):
     """步骤执行状态."""
 
-    SUCCESS = "success"  # 成功
-    FAILURE = "failure"  # 失败
-    SKIPPED = "skipped"  # 跳过
-    INFO = "info"  # 信息收集
+    SUCCESS = "success"  # success
+    FAILURE = "failure"  # failure
+    SKIPPED = "skipped"  # skipped
+    INFO = "info"  # informational
 
 
 class StepRecord(BaseModel):
     """单个渗透步骤的结构化记录.
 
-    用于生成可读的攻击路径摘要。
+    Used to generate a readable attack-path summary.
     """
 
-    phase: PentestPhase = Field(description="所属阶段")
-    round: int = Field(default=0, description="轮次")
-    action: str = Field(default="", description="执行的动作（如端口扫描、漏洞探测）")
-    target: str = Field(default="", description="目标（IP/URL/路径等）")
-    result: str = Field(default="", description="执行结果摘要")
-    status: StepStatus = Field(default=StepStatus.INFO, description="执行状态")
-    detail: str = Field(default="", description="详细信息（可选）")
+    phase: PentestPhase = Field(description="the phase it belongs to")
+    round: int = Field(default=0, description="round number")
+    action: str = Field(default="", description="the action taken (e.g. port scan, vulnerability probe)")
+    target: str = Field(default="", description="target (IP/URL/path, etc.)")
+    result: str = Field(default="", description="result summary")
+    status: StepStatus = Field(default=StepStatus.INFO, description="execution status")
+    detail: str = Field(default="", description="details (optional)")
 
     def to_summary(self) -> str:
         """转换为可读的摘要行."""
@@ -237,27 +250,27 @@ class TaskConstraints(BaseModel):
         if self.is_empty():
             return ""
 
-        lines = ["## 当前任务硬约束"]
+        lines = ["## Current Task Hard Constraints"]
         if self.allowed_ports:
-            lines.append(f"- 仅允许测试端口: {', '.join(str(p) for p in self.allowed_ports)}")
+            lines.append(f"- Only test ports: {', '.join(str(p) for p in self.allowed_ports)}")
         if self.blocked_ports:
-            lines.append(f"- 禁止测试端口: {', '.join(str(p) for p in self.blocked_ports)}")
+            lines.append(f"- Blocked ports: {', '.join(str(p) for p in self.blocked_ports)}")
         if self.allowed_hosts:
-            lines.append(f"- 仅允许测试主机: {', '.join(self.allowed_hosts)}")
+            lines.append(f"- Only test hosts: {', '.join(self.allowed_hosts)}")
         if self.blocked_hosts:
-            lines.append(f"- 禁止测试主机: {', '.join(self.blocked_hosts)}")
+            lines.append(f"- Blocked hosts: {', '.join(self.blocked_hosts)}")
         if self.allowed_paths:
-            lines.append(f"- 仅允许测试路径: {', '.join(self.allowed_paths)}")
+            lines.append(f"- Only test paths: {', '.join(self.allowed_paths)}")
         if self.blocked_paths:
-            lines.append(f"- 禁止测试路径: {', '.join(self.blocked_paths)}")
+            lines.append(f"- Blocked paths: {', '.join(self.blocked_paths)}")
         if self.allowed_actions:
-            lines.append(f"- 仅允许动作: {', '.join(self.allowed_actions)}")
+            lines.append(f"- Only actions: {', '.join(self.allowed_actions)}")
         if self.blocked_actions:
-            lines.append(f"- 禁止动作: {', '.join(self.blocked_actions)}")
+            lines.append(f"- Blocked actions: {', '.join(self.blocked_actions)}")
         if self.notes:
-            lines.append(f"- 其他限制: {'; '.join(self.notes)}")
+            lines.append(f"- Other restrictions: {'; '.join(self.notes)}")
         if self.strict_mode:
-            lines.append("- 严格模式: 超出范围时只记录，不主动测试，不调用工具执行。")
+            lines.append("- Strict mode: out-of-scope activity is only recorded, not actively tested, and no tools are executed.")
         return "\n".join(lines)
 
 
@@ -282,8 +295,8 @@ class SessionState(BaseModel):
     target: Optional[str] = None
     phase: PentestPhase = PentestPhase.IDLE
     started_at: str = Field(default_factory=lambda: datetime.now().isoformat())
-    resume_summary: str = Field(default="", description="恢复时注入的历史成果摘要")
-    resume_meta: dict[str, Any] = Field(default_factory=dict, description="恢复元信息")
+    resume_summary: str = Field(default="", description="historical-results summary injected on resume")
+    resume_meta: dict[str, Any] = Field(default_factory=dict, description="resume metadata")
     task_constraints: TaskConstraints = Field(default_factory=TaskConstraints)
     constraint_violations: list[str] = Field(default_factory=list)
     constraint_violation_events: list[ConstraintViolationEvent] = Field(default_factory=list)
@@ -300,49 +313,49 @@ class SessionState(BaseModel):
     step_records: list[StepRecord] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     # ★ Confirmed facts vs unverified assumptions — critical for CTF reasoning
-    confirmed_facts: list[str] = Field(default_factory=list, description="已通过工具验证确认的事实")
+    confirmed_facts: list[str] = Field(default_factory=list, description="facts confirmed via tool verification")
     unverified_assumptions: list[str] = Field(
-        default_factory=list, description="推理中基于但未验证的假设"
+        default_factory=list, description="assumptions relied on in reasoning but not verified"
     )
     # ★ Recon dimension completion tracking — prevent premature [DONE] in info gathering
     recon_dimensions_completed: dict[str, bool] = Field(
         default_factory=lambda: {
-            "server": False,  # 维度一：服务器信息（端口/真实IP/OS/中间件/数据库）
-            "website": False,  # 维度二：网站信息（架构/指纹/WAF/敏感目录/源码泄露/旁站/C段）
-            "domain": False,  # 维度三：域名信息（WHOIS/ICP备案/子域名/DNS/证书透明度）
-            "personnel": False,  # 维度四：人员信息（条件触发 — 仅明确社工需求时激活）
+            "server": False,  # Dimension 1: server info (ports/real IP/OS/middleware/database)
+            "website": False,  # Dimension 2: website info (architecture/fingerprint/WAF/sensitive dirs/source leaks/co-hosted sites/C-segment)
+            "domain": False,  # Dimension 3: domain info (WHOIS/ICP filing/subdomains/DNS/certificate transparency)
+            "personnel": False,  # Dimension 4: personnel info (conditional — activated only on explicit social-eng need)
         },
-        description="信息收集四维模型完成度追踪",
+        description="four-dimension recon-model coverage tracking",
     )
-    recon_dimension4_active: bool = Field(default=False, description="维度四（人员信息）是否被激活")
+    recon_dimension4_active: bool = Field(default=False, description="whether Dimension 4 (personnel info) is activated")
 
-    # ★ 漏洞去重追踪（PrivateAttr 不受 Pydantic 字段命名限制）
+    # ★ Finding-dedup tracking (PrivateAttr is exempt from Pydantic field-naming rules)
     _finding_ids_cache: set[str] = PrivateAttr(default_factory=set)
 
-    # 语义去重相似度阈值（高于此值视为同一漏洞的不同表述）
+    # Semantic-dedup similarity threshold (above this = the same vulnerability worded differently)
     semantic_dedup_threshold: float = Field(
-        default=0.75, description="语义去重的相似度阈值（0-1）"
+        default=0.75, description="semantic-dedup similarity threshold (0-1)"
     )
 
     def add_finding(self, finding: VulnerabilityFinding) -> bool:
         """Add a vulnerability finding with deduplication.
 
-        去重分两层：
-            1. finding_id 精确 hash 匹配（快）
-            2. 语义相似度匹配（捕获"同一漏洞不同表述"），命中后保留证据更强者
+        Two-layer dedup:
+            1. exact finding_id hash match (fast)
+            2. semantic-similarity match (catches "the same vulnerability worded differently"); on a hit, keep the better-evidenced one
 
         Returns:
             True if finding was added, False if duplicate (skipped).
         """
-        # 生成 finding_id（如果还没有）
+        # Generate finding_id (if not already set)
         if hasattr(finding, "_sync_status_fields"):
             finding._sync_status_fields()
         if not finding.finding_id:
             finding.finding_id = finding._generate_finding_id()
 
-        # 第一层：finding_id 精确去重
+        # Layer 1: exact finding_id dedup
         if finding.finding_id in self._finding_ids_cache:
-            print(f"[DEDUP] 跳过重复漏洞: {finding.title} (ID: {finding.finding_id})")
+            print(f"[DEDUP] skipping duplicate finding: {finding.title} (ID: {finding.finding_id})")
             return False
 
         # 第二层：语义相似度去重
@@ -356,14 +369,14 @@ class SessionState(BaseModel):
                 # 命中语义重复：保留证据更强者
                 if _evidence_strength(finding) > _evidence_strength(existing):
                     print(
-                        f"[DEDUP-SEM] 语义重复，替换为证据更强的漏洞: "
-                        f"{finding.title} 取代 {existing.title}"
+                        f"[DEDUP-SEM] semantic duplicate; replaced with a better-evidenced finding: "
+                        f"{finding.title} replaces {existing.title}"
                     )
                     self._finding_ids_cache.discard(existing.finding_id)
                     self._finding_ids_cache.add(finding.finding_id)
                     self.findings[idx] = finding
                 else:
-                    print(f"[DEDUP-SEM] 跳过语义重复漏洞: {finding.title}")
+                    print(f"[DEDUP-SEM] skipping semantic-duplicate finding: {finding.title}")
                 return False
 
         # 添加到追踪集合和列表
@@ -374,7 +387,7 @@ class SessionState(BaseModel):
     def get_verified_findings(self) -> list[VulnerabilityFinding]:
         """获取已验证的漏洞列表.
 
-        只返回 verified=True 的漏洞，未验证的不返回。
+        Returns only verified=True findings; unverified ones are excluded.
         """
         return [f for f in self.findings if f.verified]
 
@@ -414,7 +427,7 @@ class SessionState(BaseModel):
         """Record a discovered subdomain into recon_data['subdomains'].
 
         The LLM can call this via python_execute when it discovers subdomains
-        during the recon phase (维度三). Subdomains are displayed in the
+        during the recon phase (Dimension 3). Subdomains are displayed in the
         attack surface summary in reports.
         """
         if "subdomains" not in self.recon_data:
@@ -472,9 +485,9 @@ class SessionState(BaseModel):
 
         Args:
             step: Original step string (for backward compatibility).
-            action: Short action description (e.g. "端口扫描", "漏洞探测").
+            action: Short action description (e.g. "port scan", "vulnerability probe").
             target: Target of the action (e.g. "192.168.1.1:80", "/admin/login").
-            result: Brief result summary (e.g. "发现22个开放端口").
+            result: Brief result summary (e.g. "found 22 open ports").
             status: Execution status.
             detail: Optional detailed information.
         """
@@ -500,7 +513,7 @@ class SessionState(BaseModel):
         """生成攻击路径摘要.
 
         Returns:
-            按阶段分组的步骤摘要，包含关键发现。
+            A phase-grouped step summary, including key findings.
         """
         # ★ 优先使用结构化 step_records
         if self.step_records:
@@ -553,7 +566,7 @@ class SessionState(BaseModel):
         """
         import re
 
-        # 关键词模式
+        # Keyword patterns (bilingual: legacy Chinese + English model output)
         DISCOVERY_KEYWORDS = [
             "发现",
             "漏洞",
@@ -569,6 +582,17 @@ class SessionState(BaseModel):
             "CVE",
             "flag",
             "敏感",
+            "found",
+            "vulnerability",
+            "port",
+            "service",
+            "path",
+            "leak",
+            "confirmed",
+            "verified",
+            "success",
+            "accessible",
+            "sensitive",
         ]
         FAILURE_KEYWORDS = [
             "失败",
@@ -577,6 +601,13 @@ class SessionState(BaseModel):
             "拒绝",
             "拦截",
             "无法",
+            "fail",
+            "error",
+            "timeout",
+            "denied",
+            "blocked",
+            "unable",
+            "not found",
             "404",
             "502",
             "503",
@@ -686,7 +717,7 @@ class SessionState(BaseModel):
         clean = re.sub(r"Round\s*\d+:", "", step)
         clean = re.sub(r"<think>.*?</think>", "", clean)
         clean = clean.strip()[:40]
-        return clean if clean else "执行步骤"
+        return clean if clean else "execution step"
 
     def _extract_result(self, step: str) -> str:
         """从步骤文本中提取结果摘要."""
@@ -854,19 +885,19 @@ class SessionState(BaseModel):
         ]
         status = " | ".join(parts)
         if incomplete:
-            status += f"\n→ 还有 {len(incomplete)} 个维度未检查，继续收集，不要标记 [DONE]"
+            status += f"\n→ {len(incomplete)} dimension(s) still unchecked; keep gathering, do not mark [DONE]"
         return status
 
     def advance_phase(self, phase: PentestPhase) -> None:
         """Move to a new phase."""
         old_phase = self.phase
         self.phase = phase
-        # 记录阶段切换
+        # Record the phase transition
         self.add_step(
-            step=f"阶段切换 → {phase.value}",
-            action="阶段切换",
+            step=f"Phase change → {phase.value}",
+            action="phase change",
             target=f"{old_phase.value} → {phase.value}",
-            result=f"进入{phase.value}阶段",
+            result=f"Entered {phase.value} phase",
             status=StepStatus.INFO,
         )
 
@@ -946,7 +977,7 @@ class ContextManager:
             self.messages.append(
                 {
                     "role": "system",
-                    "content": f"[之前的会话摘要]\n{summary}",
+                    "content": f"[Previous session summary]\n{summary}",
                 }
             )
         self.messages.extend(recent)

@@ -75,15 +75,15 @@ def test_reflections_drive_escalation_and_reset_failure_counters():
 def test_escalation_hints_are_level_specific_and_capped():
     engine = ReflexionEngine()
 
-    assert engine.get_escalation_hints() == ["先尝试原始 payload（不编码）。"]
+    assert engine.get_escalation_hints() == ["Try the original payload first (no encoding)."]
 
     for index in range(10):
         engine.record_attempt(path=f"path_{index}", success=False, vuln_type="sqli")
 
     assert engine.get_escalation_level() == 4
     hints = engine.get_escalation_hints()
-    assert "组合多层编码混淆。" in hints
-    assert "切换到完全不同的漏洞类型/攻击面。" in hints
+    assert "Combine multiple layers of encoding/obfuscation." in hints
+    assert "Switch to a completely different vulnerability type / attack surface." in hints
 
 
 def test_analyze_failure_patterns_groups_by_category():
@@ -131,11 +131,11 @@ def test_prompt_block_is_empty_until_state_exists():
     block = engine.to_prompt_block()
 
     # 轻量状态块：仅计数 + 失败路径；详细的失败模式/升级提示已移至 to_reflection_prompt
-    assert "🔁 反思状态：" in block
-    assert "当前升级级别: L0" in block
+    assert "🔁 Reflexion status:" in block
+    assert "Current escalation level: L0" in block
     assert "sqli_union" in block
-    assert "失败模式" not in block
-    assert "绕过提示" not in block
+    assert "Failure-pattern" not in block
+    assert "bypass hint" not in block
 
 
 def test_extract_experience_returns_none_or_dict():

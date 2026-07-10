@@ -86,10 +86,10 @@ class TestReportGenerator:
         output = str(tmp_path / "report_constraints.md")
         generate_report(session, output)
         content = Path(output).read_text(encoding="utf-8")
-        assert "任务约束" in content
-        assert "仅端口 443" in content
-        assert "仅主机 example.com" in content
-        assert "仅路径 /admin" in content
+        assert "Task constraints" in content
+        assert "only port 443" in content
+        assert "only host example.com" in content
+        assert "only path /admin" in content
 
     def test_report_contains_constraint_violation_audit(self, tmp_path):
         from vulnclaw.report.generator import generate_report
@@ -102,7 +102,7 @@ class TestReportGenerator:
         output = str(tmp_path / "report_violations.md")
         generate_report(session, output)
         content = Path(output).read_text(encoding="utf-8")
-        assert "约束违规审计" in content
+        assert "Constraint-Violation Audit" in content
         assert "tool 'fetch'" in content
 
     def test_report_contains_findings(self, tmp_path):
@@ -116,8 +116,8 @@ class TestReportGenerator:
         assert "Cross-Site Scripting" in content
         assert "Information Disclosure" in content
         assert "PoC" in content
-        assert "证据等级" in content
-        assert "生命周期" in content
+        assert "Evidence level" in content
+        assert "Lifecycle" in content
 
     def test_report_includes_location_and_repro_details(self, tmp_path):
         from vulnclaw.agent.context import SessionState, VulnerabilityFinding
@@ -137,7 +137,7 @@ class TestReportGenerator:
         output = str(tmp_path / "report_rce.md")
         generate_report(session, output)
         content = Path(output).read_text(encoding="utf-8")
-        assert "已验证漏洞定位与复现信息" in content
+        assert "Verified Vulnerability Location & Reproduction Info" in content
         assert "https://example.com/admin/exec" in content
         assert "PoC" in content
 
@@ -160,8 +160,8 @@ class TestReportGenerator:
         output = str(tmp_path / "report_review.md")
         generate_report(session, output)
         content = Path(output).read_text(encoding="utf-8")
-        assert "需人工复核" in content
-        assert "候选项" in content or "待验证项" in content
+        assert "Needs manual review" in content
+        assert "Candidates" in content or "Pending-verification items" in content
 
     def test_report_contains_severity_counts(self, tmp_path):
         from vulnclaw.report.generator import generate_report
@@ -241,8 +241,8 @@ class TestReportGenerator:
         content = Path(output).read_text(encoding="utf-8")
         # Report with no verified findings should mention 0 verified or show summary
         assert "10.0.0.1" in content
-        assert "候选项" in content
-        assert "已验证漏洞" in content
+        assert "Candidates" in content
+        assert "Verified vulnerabilities" in content
 
     def test_report_creates_pocs_dir(self, tmp_path):
         from vulnclaw.report.generator import generate_report
@@ -315,7 +315,7 @@ class TestReportGenerator:
 
         output = generate_report_from_target_state(target_state)
         content = Path(output).read_text(encoding="utf-8")
-        assert "目标历史治理上下文" in content
+        assert "Target History Governance Context" in content
         assert "continue_scan" in content
         assert "paths:/admin" in content
         assert "old.example.com" in content
@@ -345,7 +345,7 @@ class TestReportGenerator:
             output_path=str(tmp_path / "cycle.md"),
         )
         content = Path(output).read_text(encoding="utf-8")
-        assert "已验证漏洞定位与复现信息" in content
+        assert "Verified Vulnerability Location & Reproduction Info" in content
         assert "https://example.com/admin/exec" in content
         assert "PoC" in content
 
@@ -402,7 +402,7 @@ class TestReportGenerator:
         )
         content = Path(output).read_text(encoding="utf-8")
         # Only the one newly-verified finding counts as new this cycle.
-        assert "本周期新增已验证漏洞** | 1 个" in content
+        assert "New verified vulnerabilities this cycle** | 1" in content
         assert "New SQLi" in content
 
     def test_persistent_cycle_report_prefers_llm_attack_summary(self, tmp_path, monkeypatch):
@@ -482,7 +482,7 @@ class TestPoCBuilder:
         assert "sql_injection" in content
         assert "requests.get(target, params=params" in content
         assert "http://192.168.1.100/login?id=1" in content
-        assert "[CONFIRMED] SQL注入漏洞" in content
+        assert "[CONFIRMED] SQL injection" in content
 
     def test_poc_is_valid_python(self, tmp_path):
         """Generated PoC should be syntactically valid Python."""
@@ -641,4 +641,4 @@ class TestPoCBuilder:
         output = str(tmp_path / "report_manual.md")
         generate_report(session, output)
         content = Path(output).read_text(encoding="utf-8")
-        assert "需人工复核" in content
+        assert "Needs manual review" in content

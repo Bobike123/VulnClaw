@@ -30,9 +30,9 @@ async def test_consecutive_same_failures_generate_reflexion_prompt(tmp_path, mon
 
     await agent.auto_pentest("扫描 example.com 的 SQL注入漏洞", max_rounds=4)
 
-    assert "🔴 反思接管" in captured_contexts[3]
-    assert "停止在当前攻击路径上重复换 payload。" in captured_contexts[3]
-    assert "路径切换强制指令" not in captured_contexts[3]
+    assert "🔴 Reflexion takeover" in captured_contexts[3]
+    assert "Stop swapping payloads on the current attack path." in captured_contexts[3]
+    assert "Forced path switch" not in captured_contexts[3]
     assert agent.runtime.same_path_fail_count >= 2
 
 
@@ -43,8 +43,8 @@ def test_reflexion_disabled_keeps_legacy_same_path_warning(tmp_path):
 
     context = agent._build_round_context(5, 5)
 
-    assert "路径切换强制指令" in context
-    assert "🔴 反思接管" not in context
+    assert "Forced path switch" in context
+    assert "🔴 Reflexion takeover" not in context
     assert agent.runtime.same_path_fail_count == 0
     assert agent.runtime.path_switch_forced is True
 

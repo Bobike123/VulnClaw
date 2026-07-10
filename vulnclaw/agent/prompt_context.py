@@ -48,7 +48,7 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
 
     findings_summary = ""
     if state.findings:
-        findings_summary = f"\n已发现漏洞: {len(state.findings)} 个"
+        findings_summary = f"\nVulnerabilities found: {len(state.findings)}"
         for finding in state.findings[-5:]:
             findings_summary += (
                 f"\n  - [{finding.severity}] {finding.title}: {finding.evidence[:100]}"
@@ -58,7 +58,7 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     if round_num <= agent.runtime.user_vuln_hint_rounds and agent.runtime.user_vuln_hint:
         user_hint_directive = (
             f"\n\n{'=' * 50}\n"
-            f"【用户明确提示 — 第 {round_num}/{agent.runtime.user_vuln_hint_rounds} 轮】\n"
+            f"[Explicit user hint — round {round_num}/{agent.runtime.user_vuln_hint_rounds}]\n"
             f"{agent.runtime.user_vuln_hint}\n"
             f"{'=' * 50}\n"
         )
@@ -67,7 +67,7 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     steps_summary = ""
     if state.executed_steps:
         recent_steps = state.executed_steps[-8:]
-        steps_summary = f"\n最近执行步骤: {len(state.executed_steps)} 个总计"
+        steps_summary = f"\nRecent steps executed: {len(state.executed_steps)} total"
         for step in recent_steps:
             steps_summary += f"\n  - {step[:150]}"
 
@@ -75,38 +75,38 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     if state.executed_steps:
         failed_attempts = []
         failure_markers = [
-            "失败",
-            "没有",
-            "返回相同",
-            "被拦截",
+            "fail",
+            "none",
+            "same response",
+            "blocked",
             "404",
             "no",
-            "未成功",
-            "无效",
+            "unsuccessful",
+            "invalid",
             "error",
             "failed",
             "still",
-            "未发现",
-            "无结果",
+            "not found",
+            "no result",
             "timeout",
-            "禁止",
+            "forbidden",
             "denied",
-            "不存在",
-            "无法",
-            "不能",
-            "不对",
+            "not exist",
+            "unable",
+            "cannot",
+            "incorrect",
         ]
         for step in state.executed_steps:
             if any(marker in step.lower() for marker in failure_markers):
                 failed_attempts.append(step[:150])
         if failed_attempts:
-            failed_summary = "\n失败历史（不要重复这些操作）:"
+            failed_summary = "\nFailure history (do not repeat these actions):"
             for failure in failed_attempts[-10:]:
                 failed_summary += f"\n  ❌ {failure}"
 
     recon_summary = ""
     if state.recon_data:
-        recon_summary = f"\n侦察数据: {list(state.recon_data.keys())}"
+        recon_summary = f"\nRecon data: {list(state.recon_data.keys())}"
 
     resume_summary = ""
     if getattr(state, "resume_summary", ""):
@@ -114,20 +114,20 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
 
     notes_summary = ""
     if state.notes:
-        notes_summary = f"\n重要笔记: {'; '.join(state.notes[-5:])}"
+        notes_summary = f"\nImportant notes: {'; '.join(state.notes[-5:])}"
 
     facts_summary = ""
     if hasattr(state, "confirmed_facts") and state.confirmed_facts:
-        facts_summary = "\n已确认事实（工具验证过，可信）:"
+        facts_summary = "\nConfirmed facts (tool-verified, trustworthy):"
         for fact in state.confirmed_facts[-8:]:
             facts_summary += f"\n  ✅ {fact[:150]}"
 
     assumptions_summary = ""
     if hasattr(state, "unverified_assumptions") and state.unverified_assumptions:
-        assumptions_summary = "\n⚠️ 未验证假设（推理基础但未确认，可能错误）:"
+        assumptions_summary = "\n⚠️ Unverified assumptions (reasoning basis but not confirmed, may be wrong):"
         for assumption in state.unverified_assumptions[-5:]:
             assumptions_summary += f"\n  ❓ {assumption[:150]}"
-        assumptions_summary += "\n→ 如果某条假设是错的，基于它的推理全部作废！优先验证关键假设。"
+        assumptions_summary += "\n→ If an assumption is wrong, all reasoning based on it is void! Verify key assumptions first."
 
     path_warning = ""
     same_path_fails = agent.runtime.same_path_fail_count
@@ -136,28 +136,28 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
         recent = state.executed_steps[-8:]
         if len(recent) >= 5:
             recent_text = " ".join(recent).lower()
-            stuck_indicators = ["get=", "post=", "payload", "参数", "尝试"]
+            stuck_indicators = ["get=", "post=", "payload", "param", "attempt"]
             stuck_count = sum(
                 1 for indicator in stuck_indicators if recent_text.count(indicator) >= 3
             )
             if stuck_count >= 1:
                 path_warning = (
-                    "\n\n⚠️ 你已经在当前路径上尝试了多轮但没有突破。"
-                    "\n请重新审视源码/信息，是否有其他更简单的利用路径？"
-                    "\n列出所有可能的路径，然后切换到最简单的一条。"
+                    "\n\n⚠️ You have tried the current path for several rounds with no breakthrough."
+                    "\nRe-examine the source/info: is there a simpler exploitation path?"
+                    "\nList every possible path, then switch to the simplest one."
                 )
 
     path_switch_warning = ""
     if not reflexion_enabled and same_path_fails >= 3:
         path_switch_warning = (
-            f"\n\n🔴 路径切换强制指令：你已经在同一条攻击路径上失败了 {same_path_fails} 次！"
-            f"\n你必须立即执行以下步骤："
-            f"\n1. 停下来，列出至少 3 条**完全不同**的替代攻击路径"
-            f"\n   （不是换 payload 值，而是换攻击方式：如从'绕过正则'换成'伪协议读文件'或'数组绕过'）"
-            f"\n2. 按难度从低到高排序这些替代路径"
-            f"\n3. 选择最简单的替代路径开始尝试"
-            f"\n4. 在尝试新路径前，先花 1 轮验证你的新假设"
-            f"\n\n⚠️ 禁止继续在同一路径上换 payload 值尝试！"
+            f"\n\n🔴 Forced path switch: you have failed on the same attack path {same_path_fails} times!"
+            f"\nYou must immediately do the following:"
+            f"\n1. Stop and list at least 3 **fundamentally different** alternative attack paths"
+            f"\n   (not a new payload value, but a new attack method: e.g. from 'bypass the regex' to 'read a file via a wrapper' or 'array bypass')"
+            f"\n2. Order these alternatives from easiest to hardest"
+            f"\n3. Pick the simplest alternative and start there"
+            f"\n4. Before trying a new path, spend 1 round verifying your new assumption"
+            f"\n\n⚠️ Do not keep trying new payload values on the same path!"
         )
         agent.runtime.same_path_fail_count = 0
         agent.runtime.path_switch_forced = True
@@ -165,23 +165,23 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     assumption_reminder = ""
     if round_num > 2 and round_num % 3 == 0:
         assumption_reminder = (
-            "\n\n🧠 假设验证检查点："
-            "\n在做下一步之前，花 10 秒问自己："
-            "\n1. 我当前的推理基于什么假设？"
-            "\n2. 这些假设我验证过了吗？还是只是在想当然？"
-            "\n3. 如果某个假设是错的，我的整个推理链会崩塌吗？"
-            "\n4. 我能花 1 轮发送一个请求来验证最关键的假设吗？"
-            "\n\n❌ 常见致命假设：preg_replace 只替换第一个匹配 / Python 模拟 = 服务器行为 / 参数名是某个值"
+            "\n\n🧠 Assumption-verification checkpoint:"
+            "\nBefore the next step, take 10 seconds to ask yourself:"
+            "\n1. What assumptions is my current reasoning based on?"
+            "\n2. Have I verified those assumptions, or am I just taking them for granted?"
+            "\n3. If one assumption is wrong, will my whole reasoning chain collapse?"
+            "\n4. Can I spend 1 round sending a request to verify the most critical assumption?"
+            "\n\n❌ Common fatal assumptions: preg_replace only replaces the first match / Python simulation = server behavior / the parameter name is some value"
         )
 
     python_timeout_warning = ""
     python_timeout_rounds = agent.runtime.python_timeout_rounds
     if python_timeout_rounds >= 1:
         python_timeout_warning = (
-            "\n\n⚠️ **代码执行警告**：上轮 Python 脚本超时了。"
-            "\n禁止写超过 10 行的复杂脚本。"
-            "\n优先使用已有的工具（fetch/python_execute）而非自己写爬虫/解析代码。"
-            "\n禁止重复执行相同的大段脚本。"
+            "\n\n⚠️ **Code-execution warning**: the previous Python script timed out."
+            "\nDo not write complex scripts over 10 lines."
+            "\nPrefer existing tools (fetch/python_execute) over writing your own crawler/parser code."
+            "\nDo not repeatedly run the same large script."
         )
 
     dead_loop_warning = ""
@@ -192,30 +192,30 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     blocked_targets = agent.runtime.blocked_targets
     if blocked_targets:
         blocked_targets_warning = (
-            f"\n\n🚨 **目标不可访问警告**：以下目标已连续多次访问失败，禁止再次尝试："
-            f"\n{chr(10).join(f'  ❌ {target} — 已确认不可达' for target in blocked_targets)}"
-            f"\n\n你必须："
-            f"\n1. 立即停止访问上述目标"
-            f"\n2. 专注于其他存活的目标"
-            f"\n3. 如果没有其他目标，切换到已确认漏洞的深入利用"
-            f"\n4. 不要再浪费轮次尝试连接不可达的目标"
+            f"\n\n🚨 **Target-unreachable warning**: the following targets have failed repeatedly; do not try them again:"
+            f"\n{chr(10).join(f'  ❌ {target} — confirmed unreachable' for target in blocked_targets)}"
+            f"\n\nYou must:"
+            f"\n1. Immediately stop accessing the targets above"
+            f"\n2. Focus on other live targets"
+            f"\n3. If there are no other targets, switch to deeper exploitation of a confirmed vulnerability"
+            f"\n4. Do not waste more rounds trying to reach unreachable targets"
         )
 
     if rounds_no_progress >= stale_threshold:
         dead_loop_warning = (
-            f"\n\n🔴 严重警告：你已经连续 {rounds_no_progress} 轮没有任何新发现！"
-            f"\n这表明你陷入了死循环。你必须立即采取以下措施之一："
-            f"\n1. 🔥 重新获取完整源码（用 python_execute + strip_tags）"
-            f"\n2. 🔥 尝试完全不同的攻击路径（换参数名、换方法、换工具）"
-            f"\n3. 🔥 如果当前信息不足，承认并尝试其他信息收集方法"
-            f"\n4. 🔥 停止重复相同操作！回顾失败历史，选择新方向"
-            f"\n\n⚠️ 再次重复相同操作将不会产生不同结果！"
+            f"\n\n🔴 Severe warning: you have had no new findings for {rounds_no_progress} rounds in a row!"
+            f"\nThis means you are stuck in a dead loop. You must immediately do one of the following:"
+            f"\n1. 🔥 Re-fetch the full source (with python_execute + strip_tags)"
+            f"\n2. 🔥 Try a completely different attack path (change the parameter name, method, or tool)"
+            f"\n3. 🔥 If the current info is insufficient, admit it and try other recon methods"
+            f"\n4. 🔥 Stop repeating the same action! Review the failure history and pick a new direction"
+            f"\n\n⚠️ Repeating the same action again will not produce a different result!"
         )
     elif rounds_no_progress >= max(stale_threshold // 2, 2):
         dead_loop_warning = (
-            f"\n\n⚠️ 警告：你已经连续 {rounds_no_progress} 轮没有新发现。"
-            f"\n请检查：是否在重复相同操作？是否有其他未尝试的路径？"
-            f"\n如果当前方法不work，立即切换到其他方法。"
+            f"\n\n⚠️ Warning: you have had no new findings for {rounds_no_progress} rounds in a row."
+            f"\nCheck: are you repeating the same action? Is there another untried path?"
+            f"\nIf the current method is not working, switch to another one immediately."
         )
 
     flag_warning = ""
@@ -223,34 +223,34 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     flag_verified = agent.runtime.flag_verified
     if claimed_flag and flag_verified:
         flag_warning = (
-            f"\n\n✅ FLAG 已验证: {claimed_flag}"
-            f"\n你的任务已完成！请简洁总结解题过程，然后标记 [DONE] 结束。"
-            f"\n⚠️ 不要重复验证或重复发送请求！立即总结并结束。"
+            f"\n\n✅ FLAG verified: {claimed_flag}"
+            f"\nYour task is complete! Concisely summarize the solution, then mark [DONE] to finish."
+            f"\n⚠️ Do not re-verify or resend requests! Summarize and finish immediately."
         )
     elif claimed_flag and not flag_verified:
         flag_warning = (
-            f"\n\n⚠️ 你之前声称找到了 flag: {claimed_flag}"
-            f"\n但这个 flag 未经独立验证！你必须："
-            f"\n1. 用工具重新发送 payload 确认结果可复现"
-            f"\n2. 或用不同方法交叉验证（如换一个函数/路径读取同一内容）"
-            f"\n3. 如果验证失败，必须承认之前的 flag 是错误的，继续解题"
-            f"\n在验证完成前，不要标记 [DONE]"
+            f"\n\n⚠️ You previously claimed to have found a flag: {claimed_flag}"
+            f"\nBut this flag has not been independently verified! You must:"
+            f"\n1. Resend the payload with a tool to confirm the result is reproducible"
+            f"\n2. Or cross-verify by a different method (e.g. read the same content via a different function/path)"
+            f"\n3. If verification fails, you must admit the earlier flag was wrong and keep solving"
+            f"\nDo not mark [DONE] until verification is complete"
         )
 
     ctf_mode_warning = ""
     is_ctf = agent.runtime.is_ctf_mode
     if is_ctf and not claimed_flag:
         ctf_mode_warning = (
-            "\n\n🔴 CTF 解题模式 — 你的任务是找到 flag 并验证。"
-            "\n当前你还没有找到任何 flag，禁止标记 [DONE]。"
-            "\n请分析已有信息，选择最有可能的攻击路径继续推进。"
-            "\n如果当前路径受阻，尝试切换到其他路径。"
+            "\n\n🔴 CTF solving mode — your task is to find and verify the flag."
+            "\nYou have not found any flag yet; do not mark [DONE]."
+            "\nAnalyze the available info and pick the most likely attack path to advance."
+            "\nIf the current path is blocked, try switching to another."
         )
     elif is_ctf and claimed_flag and not flag_verified:
         ctf_mode_warning = (
-            "\n\n🔴 CTF 解题模式 — 你声称找到了 flag 但未验证。"
-            "\n必须用工具验证 flag 的真实性后才能标记 [DONE]。"
-            "\n如果验证失败，必须继续寻找正确的 flag。"
+            "\n\n🔴 CTF solving mode — you claimed a flag but did not verify it."
+            "\nYou must verify the flag's authenticity with a tool before marking [DONE]."
+            "\nIf verification fails, keep looking for the correct flag."
         )
 
     recon_dim_status = ""
@@ -259,43 +259,43 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
         is_complete = state.is_recon_complete()
         rounds_no_progress = agent.runtime.rounds_without_progress
 
-        recon_dim_status = f"\n\n📊 信息收集维度完成度:\n{dim_status_text}"
+        recon_dim_status = f"\n\n📊 Recon dimension coverage:\n{dim_status_text}"
         if not is_complete:
             recon_dim_status += (
-                "\n\n🔴 信息收集未完成！还有维度未检查，禁止标记 [DONE]。"
-                "\n请继续对未完成的维度执行检查，确保每个维度都至少做过一轮。"
+                "\n\n🔴 Recon is incomplete! Some dimensions are unchecked; do not mark [DONE]."
+                "\nKeep checking the unfinished dimensions, ensuring each has had at least one round."
             )
         elif (is_complete and rounds_no_progress >= 3) or (rounds_no_progress >= 8 + 5):
             output_dir = str(agent.config.session.output_dir.resolve())
             if is_complete:
-                trigger_reason = f"所有维度均已完成 ✅，连续 {rounds_no_progress} 轮无新进展"
+                trigger_reason = f"all dimensions complete ✅, {rounds_no_progress} rounds with no new progress"
             else:
-                trigger_reason = f"连续 {rounds_no_progress} 轮无新进展（8+5 安全阀）"
+                trigger_reason = f"{rounds_no_progress} rounds with no new progress (8+5 safety valve)"
             recon_dim_status += (
-                f"\n\n🔴 ★★★ 侦察→利用阶段强制切换 ★★★\n"
+                f"\n\n🔴 ★★★ Forced switch: recon → exploitation ★★★\n"
                 f"{trigger_reason}。\n"
-                f"你必须立即切换到【漏洞利用阶段】，而不是继续收集信息或保存报告。\n\n"
-                f"★ 立即执行以下操作：\n"
-                f"1. 在回复中输出「切换到漏洞发现」或「阶段: vuln_discovery」\n"
-                f"2. 基于已收集的侦察结果（目标画像/旁站/API泄露等），\n"
-                f"   对最高价值的攻击面实施实际的漏洞利用\n"
-                f"3. 【禁止】继续保存侦察报告或调用信息收集类工具\n"
-                f"4. 【禁止】重复已有的发现，必须有新的实际验证步骤\n\n"
-                f"★ 输出目录（侦察报告由框架自动保存，不需要你手动保存）：\n"
+                f"You must immediately switch to the [exploitation phase] instead of gathering more info or saving reports.\n\n"
+                f"★ Do the following immediately:\n"
+                f"1. Output 'switch to vulnerability discovery' or 'phase: vuln_discovery' in your reply\n"
+                f"2. Based on the collected recon results (target profile / co-hosted sites / API leaks, etc.),\n"
+                f"   carry out actual exploitation against the highest-value attack surface\n"
+                f"3. [Forbidden] Do not keep saving recon reports or calling recon tools\n"
+                f"4. [Forbidden] Do not repeat existing findings; you must take new, actual verification steps\n\n"
+                f"★ Output directory (the recon report is saved by the framework; you do not need to save it manually):\n"
                 f"   {output_dir}\n"
-                f"⚠️ 本次渗透的目标是【实际漏洞利用成功】，不是侦察报告！"
+                f"⚠️ The goal of this engagement is [actual successful exploitation], not a recon report!"
             )
         if round_num < 8:
             recon_dim_status += (
-                f"\n\n🔴 信息收集最低轮数保障：当前第 {round_num} 轮，"
-                f"最低需 8 轮。即使觉得够了也请继续深入。"
+                f"\n\n🔴 Recon minimum-rounds guarantee: currently round {round_num}, "
+                f"a minimum of 8 is required. Even if it feels sufficient, keep going deeper."
             )
 
     return (
-        f"\n\n[自主循环 Round {round_num}/{max_rounds}]"
-        f"\n当前目标: {state.target or '未设置'}"
-        f"\n当前阶段: {state.phase.value}"
-        f"\n输出目录: {agent.config.session.output_dir.resolve()}"
+        f"\n\n[Autonomous loop Round {round_num}/{max_rounds}]"
+        f"\nCurrent target: {state.target or 'not set'}"
+        f"\nCurrent phase: {state.phase.value}"
+        f"\nOutput directory: {agent.config.session.output_dir.resolve()}"
         f"{constraints_summary}"
         f"{reasoning_summary}"
         f"{reflexion_summary}"
@@ -317,9 +317,9 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
         f"{flag_warning}"
         f"{ctf_mode_warning}"
         f"{recon_dim_status}"
-        f"\n\n请基于当前状态和之前所有发现决定下一步操作，持续推进渗透测试。"
-        f"\n注意：不要重复之前已经做过的操作，专注于推进到下一步。"
-        f"\n如果发现重要线索或完成测试，在回复末尾添加 [DONE] 标记。"
+        f"\n\nBased on the current state and all prior findings, decide the next action and keep advancing the pentest."
+        f"\nNote: do not repeat actions you already did; focus on advancing to the next step."
+        f"\nIf you find a key lead or finish testing, add a [DONE] tag at the end of your reply."
     )
 
 
@@ -329,34 +329,34 @@ async def generate_attack_summary(agent: AgentContext) -> str:
 
     steps = state.executed_steps[-30:] if state.executed_steps else []
     steps_text = (
-        "\n".join(f"{i + 1}. {step}" for i, step in enumerate(steps)) if steps else "（无步骤记录）"
+        "\n".join(f"{i + 1}. {step}" for i, step in enumerate(steps)) if steps else "(no step records)"
     )
 
     notes = state.notes[-20:] if state.notes else []
-    notes_text = "\n".join(f"- {note}" for note in notes) if notes else "（无观察记录）"
+    notes_text = "\n".join(f"- {note}" for note in notes) if notes else "(no observation records)"
 
     findings = state.findings
     if findings:
         lines = []
         for finding in findings:
             evidence = (finding.evidence or "")[:150].strip()
-            lines.append(f"[{finding.severity}] {finding.title} | 证据: {evidence or '无'}")
+            lines.append(f"[{finding.severity}] {finding.title} | evidence: {evidence or 'none'}")
         findings_text = "\n".join(lines)
     else:
-        findings_text = "无"
+        findings_text = "none"
 
     prompt = (
-        f"目标：{state.target or '?'}  |  当前阶段：{state.phase.value}\n"
-        f"\n=== 已执行步骤 ===\n{steps_text}\n"
-        f"\n=== 关键观察/结果 ===\n{notes_text}\n"
-        f"\n=== 漏洞发现 ===\n{findings_text}\n\n"
-        f"请输出一段详细的中文攻击路径叙事，包含以下要素：\n"
-        f"1. 具体测试过的 URL/路径（如 https://target.com/admin/login）\n"
-        f"2. 每步使用的具体技术/工具（如 SQLMap 盲注、目录枚举、nmap 端口扫描）\n"
-        f"3. 关键响应特征（如差异长度155字节、HTTP 500错误回显）\n"
-        f"4. 漏洞与攻击面的关联（如通过目录枚举发现 /manager/html，命中 CVE-2023-44487）\n"
-        f"5. 子域名发现情况（如发现 api.target.com、cms.target.com 等）\n"
-        f"格式要求：用自然段落叙事，不用列表，长度 200-400 字，纯中文，不含 <thinking> 标签。"
+        f"Target: {state.target or '?'}  |  Current phase: {state.phase.value}\n"
+        f"\n=== Steps executed ===\n{steps_text}\n"
+        f"\n=== Key observations/results ===\n{notes_text}\n"
+        f"\n=== Vulnerability findings ===\n{findings_text}\n\n"
+        f"Output a detailed attack-path narrative in English, including the following elements:\n"
+        f"1. The specific URLs/paths tested (e.g. https://target.com/admin/login)\n"
+        f"2. The specific technique/tool used at each step (e.g. SQLMap blind injection, directory enumeration, nmap port scan)\n"
+        f"3. Key response signatures (e.g. a 155-byte length difference, an HTTP 500 error echo)\n"
+        f"4. How vulnerabilities relate to the attack surface (e.g. directory enumeration found /manager/html, matching CVE-2023-44487)\n"
+        f"5. Subdomain discoveries (e.g. found api.target.com, cms.target.com, etc.)\n"
+        f"Format: a natural-paragraph narrative, no lists, 200-400 words, in English, with no <thinking> tags."
     )
 
     try:

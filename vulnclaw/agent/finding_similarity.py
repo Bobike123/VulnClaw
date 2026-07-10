@@ -1,17 +1,17 @@
 """VulnClaw Finding Similarity — lightweight semantic deduplication.
 
-纯 Python 实现的漏洞发现语义去重，不引入任何外部 NLP 库。
+Pure-Python semantic deduplication of vulnerability findings, with no external NLP libraries.
 
-核心能力:
-    - normalize_text:        文本归一化（小写、去多余空格、URL 路径标准化）
-    - normalize_vuln_type:   漏洞类型归一化（别名映射，如 "sqli" -> "sql_injection"）
-    - text_similarity:       基于词集合的 Jaccard 相似度
-    - url_similarity:        解析 URL 后比较 host / path / query 参数
-    - finding_similarity:    综合 vuln_type / location / description 三维度相似度
-    - deduplicate_findings:  按相似度阈值去重，保留证据更充分的一方
+Core capabilities:
+    - normalize_text:        text normalization (lowercase, collapse whitespace, normalize URL paths)
+    - normalize_vuln_type:   vuln-type normalization (alias mapping, e.g. "sqli" -> "sql_injection")
+    - text_similarity:       word-set Jaccard similarity
+    - url_similarity:        parse URLs and compare host / path / query parameters
+    - finding_similarity:    combined vuln_type / location / description similarity
+    - deduplicate_findings:  dedupe by a similarity threshold, keeping the better-evidenced side
 
-与现有 finding_id hash 去重互补：hash 去重负责精确匹配，
-本模块负责语义层面"同一漏洞不同表述"的模糊匹配。
+Complements the existing finding_id hash dedup: hash dedup handles exact matches,
+this module handles semantic fuzzy matching of "the same vulnerability worded differently".
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 # ── 漏洞类型归一化映射 ───────────────────────────────────────────────────
 
-# 别名 -> 规范类型。键统一为小写、去空格的形式。
+# Alias -> canonical type. Keys are normalized to lowercase, space-collapsed form.
 _VULN_TYPE_ALIASES: dict[str, str] = {
     # SQL 注入
     "sqli": "sql_injection",
@@ -75,35 +75,43 @@ _VULN_TYPE_ALIASES: dict[str, str] = {
     "csrf": "cross_site_request_forgery",
     "跨站请求伪造": "cross_site_request_forgery",
     "cross site request forgery": "cross_site_request_forgery",
-    # 认证绕过
+    # Auth bypass
     "认证绕过": "auth_bypass",
     "未授权": "auth_bypass",
     "未授权访问": "auth_bypass",
     "未认证": "auth_bypass",
     "无需认证": "auth_bypass",
-    # 信息泄露
+    "auth bypass": "auth_bypass",
+    "unauthorized access": "auth_bypass",
+    "auth_bypass": "auth_bypass",
+    # Info disclosure
     "信息泄露": "info_disclosure",
     "数据泄露": "info_disclosure",
     "敏感信息泄露": "info_disclosure",
     "info disclosure": "info_disclosure",
+    "data leak": "info_disclosure",
+    "info_disclosure": "info_disclosure",
+    # Injection / file inclusion English labels emitted by finding_parser
+    "injection": "sql_injection",
+    "file inclusion / traversal": "local_file_inclusion",
 }
 
 
 def normalize_vuln_type(vuln_type: str) -> str:
-    """归一化漏洞类型，将常见别名映射到规范名称.
+    """Normalize a vuln type by mapping common aliases to a canonical name.
 
     Args:
-        vuln_type: 原始漏洞类型字符串（任意大小写/中英文/含空格）。
+        vuln_type: raw vuln-type string (any case / Chinese or English / with spaces).
 
     Returns:
-        规范化后的类型；无匹配别名时返回去空格小写后的原值。
+        the canonical type; if no alias matches, the space-collapsed lowercase original.
     """
     if not vuln_type:
         return ""
     key = re.sub(r"\s+", " ", vuln_type.strip().lower())
     if key in _VULN_TYPE_ALIASES:
         return _VULN_TYPE_ALIASES[key]
-    # 尝试下划线/空格互换后再匹配
+    # Try swapping underscore/space, then match again
     underscore = key.replace(" ", "_")
     if underscore in _VULN_TYPE_ALIASES:
         return _VULN_TYPE_ALIASES[underscore]
@@ -113,16 +121,26 @@ def normalize_vuln_type(vuln_type: str) -> str:
     return underscore
 
 
-# ── 文本归一化与相似度 ───────────────────────────────────────────────────
+# ── Text normalization & similarity ───────────────────────────────────────
 
 _URL_RE = re.compile(r'https?://[^\s<>"\')\]]+', re.IGNORECASE)
 _TOKEN_RE = re.compile(r"[a-z0-9一-鿿]+", re.IGNORECASE)
-# 标点边界标记（如 [自动]、[已确认]）应在分词前去掉，避免污染词集合
-_NOISE_TAGS = ("[自动]", "[已确认]", "[未验证]")
+# Bracket boundary tags (e.g. [auto], [confirmed]) should be stripped before
+# tokenizing so they do not pollute the word set. Bilingual: English (current)
+# + Chinese (legacy findings).
+_NOISE_TAGS = (
+    "[auto]",
+    "[confirmed]",
+    "[unverified]",
+    "[rejected]",
+    "[自动]",
+    "[已确认]",
+    "[未验证]",
+)
 
 
 def _normalize_url_path(url: str) -> str:
-    """标准化 URL：去 scheme、去末尾斜杠、保留 host+path。"""
+    """Normalize a URL: drop the scheme, drop the trailing slash, keep host+path."""
     try:
         parts = urlsplit(url)
     except ValueError:
@@ -135,13 +153,13 @@ def _normalize_url_path(url: str) -> str:
 
 
 def normalize_text(text: str) -> str:
-    """归一化文本：小写、合并空白、标准化内嵌 URL 路径.
+    """Normalize text: lowercase, collapse whitespace, normalize embedded URL paths.
 
     Args:
-        text: 任意自由文本（描述/证据/标题）。
+        text: any free text (description/evidence/title).
 
     Returns:
-        归一化后的文本。
+        the normalized text.
     """
     if not text:
         return ""
@@ -156,19 +174,19 @@ def normalize_text(text: str) -> str:
 
 
 def _tokenize(text: str) -> set[str]:
-    """将归一化文本切分为词集合。"""
+    """Split normalized text into a word set."""
     return set(_TOKEN_RE.findall(text))
 
 
 def text_similarity(a: str, b: str) -> float:
-    """基于词集合的 Jaccard 相似度.
+    """Word-set Jaccard similarity.
 
     Args:
-        a: 文本 A。
-        b: 文本 B。
+        a: text A.
+        b: text B.
 
     Returns:
-        [0.0, 1.0] 之间的相似度。两者皆空时返回 1.0；仅一方为空返回 0.0。
+        similarity in [0.0, 1.0]. Returns 1.0 when both are empty; 0.0 when only one is empty.
     """
     na, nb = normalize_text(a), normalize_text(b)
     if not na and not nb:
@@ -186,17 +204,17 @@ def text_similarity(a: str, b: str) -> float:
 
 
 def url_similarity(a: str, b: str) -> float:
-    """比较两个 URL 的 host / path / query 参数相似度.
+    """Compare two URLs' host / path / query-parameter similarity.
 
-    权重: host 0.3 + path 0.4 + query 参数名集合 0.3。
-    非 URL 字符串回退为对原文做 Jaccard 文本相似度。
+    Weights: host 0.3 + path 0.4 + query parameter-name set 0.3.
+    Non-URL strings fall back to Jaccard text similarity on the raw string.
 
     Args:
-        a: URL 或位置字符串 A。
-        b: URL 或位置字符串 B。
+        a: URL or location string A.
+        b: URL or location string B.
 
     Returns:
-        [0.0, 1.0] 之间的相似度。
+        similarity in [0.0, 1.0].
     """
     if not a and not b:
         return 1.0
@@ -246,7 +264,7 @@ _LOCATION_RE = re.compile(r'(?:https?://[^\s<>"\')\]]+)|(?:/[\w%&=?\-./]+)')
 
 
 def _extract_location(finding: "VulnerabilityFinding") -> str:
-    """从 finding 的 evidence / description 中提取第一个 URL 或路径作为位置。"""
+    """Extract the first URL or path from a finding's evidence / description as its location."""
     for field in (finding.evidence or "", finding.description or ""):
         if not field:
             continue
@@ -257,7 +275,7 @@ def _extract_location(finding: "VulnerabilityFinding") -> str:
 
 
 def _vuln_type_similarity(a: str, b: str) -> float:
-    """漏洞类型相似度：完全匹配 1.0，归一化后匹配 0.8，否则 0.0。"""
+    """Vuln-type similarity: exact match 1.0, normalized match 0.8, else 0.0."""
     ra, rb = (a or "").strip().lower(), (b or "").strip().lower()
     if ra and rb and ra == rb:
         return 1.0

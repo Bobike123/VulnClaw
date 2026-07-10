@@ -70,7 +70,7 @@ class TestWebServices:
         assert view.output_dir == str(tmp_path)
         assert view.max_rounds == 22
         assert view.show_thinking is True
-        assert view.python_execute_mode == "trusted-local"
+        assert view.python_execute_mode == "safe"
 
     def test_web_provider_service_lists_presets(self):
         from vulnclaw.web.services.provider_service import get_provider_presets
@@ -1198,10 +1198,11 @@ class TestWebApp:
         )
 
         assert "Fallback Web Shell" in source
-        assert "授权安全测试助手" in source
-        assert "输入目标，确认边界，再开始安全检查" in source
-        assert "React 前端仍待后续阶段接入" not in source
-        assert "Phase 1 的最小占位控制台" not in source
+        assert "Authorized security testing assistant" in source
+        assert "Enter a target, confirm the boundary, then start the check" in source
+        # Dark-mode theme
+        assert 'lang="en"' in source
+        assert "--bg: #0b1120" in source
 
     def test_cli_web_dry_run(self):
         from vulnclaw.cli.main import app

@@ -311,11 +311,32 @@ async def persistent_pentest(
     agent.context.add_user_message(user_input)
     agent._reset_runtime_state(user_input=user_input)
 
+    # Safety budget + emergency stop for this open-ended run. Ceilings are
+    # opt-in (0 = unlimited); the emergency-stop file is always honoured.
+    budget = None
+    try:
+        from vulnclaw.safety.budget import Budget
+
+        budget = Budget.from_config(agent.config).start()
+        # Expose the budget at the central tool chokepoint so tool calls are
+        # counted and an emergency stop takes effect mid-cycle, not only at
+        # cycle boundaries.
+        agent._budget = budget
+    except Exception:
+        budget = None
+
     findings_at_cycle_start = len(agent.context.state.findings)
     cycle_num = 0
     should_stop = False
 
     while not should_stop:
+        # Global safety budget / emergency stop: checked before each cycle so an
+        # operator can halt an open-ended run out-of-band (touch .vulnclaw-STOP).
+        if budget is not None and budget.check() is not None:
+            print(budget.status().message())
+            should_stop = True
+            break
+
         cycle_num += 1
         if max_cycles > 0 and cycle_num > max_cycles:
             should_stop = True
@@ -400,6 +421,8 @@ async def persistent_pentest(
             stopped_early=should_stop,
         )
         cycle_results.append(cycle_result)
+        if budget is not None:
+            budget.record_cycle()
 
         if on_cycle_complete:
             on_cycle_complete(cycle_num, cycle_result)
@@ -410,4 +433,6 @@ async def persistent_pentest(
                 if new_findings == 0 and total_findings > 0:
                     should_stop = True
 
+    if budget is not None:
+        agent._budget = None
     return cycle_results

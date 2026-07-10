@@ -13,12 +13,12 @@ class TestPentestPhase:
     def test_phase_values(self):
         from vulnclaw.agent.context import PentestPhase
 
-        assert PentestPhase.IDLE.value == "就绪"
-        assert PentestPhase.RECON.value == "信息收集"
-        assert PentestPhase.VULN_DISCOVERY.value == "漏洞发现"
-        assert PentestPhase.EXPLOITATION.value == "漏洞利用"
-        assert PentestPhase.POST_EXPLOITATION.value == "后渗透"
-        assert PentestPhase.REPORTING.value == "报告生成"
+        assert PentestPhase.IDLE.value == "Ready"
+        assert PentestPhase.RECON.value == "Recon"
+        assert PentestPhase.VULN_DISCOVERY.value == "Vulnerability Discovery"
+        assert PentestPhase.EXPLOITATION.value == "Exploitation"
+        assert PentestPhase.POST_EXPLOITATION.value == "Post-exploitation"
+        assert PentestPhase.REPORTING.value == "Reporting"
 
     def test_phase_is_str(self):
         from vulnclaw.agent.context import PentestPhase
@@ -78,7 +78,7 @@ class TestSessionState:
         assert state.phase == PentestPhase.RECON
         # Should record the phase change in steps
         assert len(state.executed_steps) == 1
-        assert "信息收集" in state.executed_steps[0]
+        assert "Recon" in state.executed_steps[0]
 
     def test_add_finding(self):
         from vulnclaw.agent.context import SessionState, VulnerabilityFinding
@@ -273,7 +273,7 @@ class TestTargetState:
         restored = store_mod.hydrate_session_from_target_state("https://example.com")
         assert restored is not None
         assert restored.resume_meta["resume_strategy"] == "verify_pending_findings"
-        assert restored.phase.value == "漏洞发现"
+        assert restored.phase.value == "Vulnerability Discovery"
         raw = store_mod.load_target_state("https://example.com")
         assert raw is not None
         assert "finding_meta" in raw
@@ -322,7 +322,7 @@ class TestTargetState:
         restored = store_mod.hydrate_session_from_target_state("https://example.com")
         assert restored is not None
         assert restored.resume_meta["resume_strategy"] == "exploit_expand"
-        assert restored.phase.value == "漏洞利用"
+        assert restored.phase.value == "Exploitation"
         assert "priority_findings" in restored.resume_meta
         assert "next_actions" in restored.resume_meta
 
@@ -603,7 +603,7 @@ class TestPromptBuilder:
 
         prompt = build_system_prompt()
         assert "VulnClaw" in prompt
-        assert "渗透测试" in prompt
+        assert "penetration" in prompt
 
     def test_prompt_with_target(self):
         from vulnclaw.agent.prompts import build_system_prompt
@@ -614,15 +614,15 @@ class TestPromptBuilder:
     def test_prompt_with_phase(self):
         from vulnclaw.agent.prompts import build_system_prompt
 
-        prompt = build_system_prompt(phase="信息收集")
-        assert "信息收集" in prompt
+        prompt = build_system_prompt(phase="Recon")
+        assert "Recon" in prompt
 
     def test_prompt_with_skill_context(self):
         from vulnclaw.agent.prompts import build_system_prompt
 
-        prompt = build_system_prompt(skill_context="这是逆向分析的 Skill 上下文")
-        assert "逆向分析" in prompt
-        assert "Skill 上下文" in prompt
+        prompt = build_system_prompt(skill_context="This is the reverse-engineering Skill context")
+        assert "reverse-engineering" in prompt
+        assert "Skill context" in prompt
 
     def test_prompt_with_mcp_tools(self):
         from vulnclaw.agent.prompts import build_system_prompt
@@ -652,13 +652,13 @@ class TestPromptBuilder:
         from vulnclaw.agent.prompts import build_system_prompt
 
         prompt = build_system_prompt()
-        assert "沙盒模式" in prompt
-        assert "证据冲突" in prompt
+        assert "Sandbox Mode" in prompt
+        assert "evidence conflict" in prompt
 
     def test_all_phases_render(self):
         from vulnclaw.agent.prompts import build_system_prompt
 
-        phases = ["信息收集", "漏洞发现", "漏洞利用", "后渗透", "报告生成"]
+        phases = ["Recon", "Vulnerability Discovery", "Exploitation", "Post-exploitation", "Reporting"]
         for phase in phases:
             prompt = build_system_prompt(phase=phase)
             assert phase in prompt
@@ -793,9 +793,9 @@ class TestAgentCore:
     def test_build_system_prompt_auto_mode(self):
         agent = self._make_agent()
         prompt = agent._build_system_prompt(
-            target="10.0.0.1", auto_mode=True, user_input="渗透测试"
+            target="10.0.0.1", auto_mode=True, user_input="penetration test"
         )
-        assert "自主渗透" in prompt
+        assert "Autonomous pentest" in prompt
 
     def test_recon_personnel_dimension_requires_confirmed_facts(self):
         agent = self._make_agent()
@@ -977,12 +977,12 @@ class TestAgentCore:
         )
 
         round1 = agent._build_round_context(1, 5)
-        assert "用户明确提示" in round1
-        assert "第 1/3 轮" in round1
+        assert "Explicit user hint" in round1
+        assert "round 1/3" in round1
         assert agent.runtime.user_vuln_hint_rounds == 2
 
         round2 = agent._build_round_context(2, 5)
-        assert "第 2/2 轮" in round2
+        assert "round 2/2" in round2
         assert agent.runtime.user_vuln_hint_rounds == 1
 
     def test_extract_task_constraints_parses_allowed_ports(self):
@@ -1030,10 +1030,10 @@ class TestAgentCore:
         round1 = agent._build_round_context(1, 5)
         round5 = agent._build_round_context(5, 5)
 
-        assert "当前任务硬约束" in round1
-        assert "仅允许测试端口: 443" in round1
-        assert "当前任务硬约束" in round5
-        assert "仅允许测试端口: 443" in round5
+        assert "Current Task Hard Constraints" in round1
+        assert "Only test ports: 443" in round1
+        assert "Current Task Hard Constraints" in round5
+        assert "Only test ports: 443" in round5
 
     @pytest.mark.asyncio
     async def test_persistent_pentest_keeps_constraints_in_followup_cycles(self):
@@ -1061,8 +1061,8 @@ class TestAgentCore:
 
         assert len(captured_inputs) == 2
         assert "只测试 443 端口" in captured_inputs[0]
-        assert "当前任务硬约束" in captured_inputs[1]
-        assert "仅允许测试端口: 443" in captured_inputs[1]
+        assert "Current Task Hard Constraints" in captured_inputs[1]
+        assert "Only test ports: 443" in captured_inputs[1]
 
     def test_reset_runtime_state_clears_previous_run_contamination(self):
         from vulnclaw.agent.context import PentestPhase
@@ -1729,7 +1729,7 @@ class TestAgentCoreLoop:
         assert len(results) == 1
         assert results[0].should_continue is False
         assert "constraint_violation" in results[0].output
-        assert agent.context.state.phase.value == "信息收集"
+        assert agent.context.state.phase.value == "Recon"
 
     def test_constraint_policy_normalizes_actions_and_validates_phase(self):
         from vulnclaw.agent.constraint_policy import (

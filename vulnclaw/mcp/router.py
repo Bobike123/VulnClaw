@@ -80,18 +80,18 @@ class MCPRouter:
         """Suggest tools based on pentest phase."""
         phase_tools = {
             "信息收集": [
-                {"tool": "fetch", "server": "fetch", "reason": "HTTP 请求探测目标"},
-                {"tool": "new_page", "server": "chrome-devtools", "reason": "浏览器访问目标"},
-                {"tool": "screenshot", "server": "chrome-devtools", "reason": "截图记录目标页面"},
+                {"tool": "fetch", "server": "fetch", "reason": "HTTP request to probe the target"},
+                {"tool": "new_page", "server": "chrome-devtools", "reason": "browser visit to the target"},
+                {"tool": "screenshot", "server": "chrome-devtools", "reason": "screenshot the target page"},
             ],
             "漏洞发现": [
-                {"tool": "fetch", "server": "fetch", "reason": "发送漏洞探测请求"},
-                {"tool": "send_http1_request", "server": "burp", "reason": "通过代理构造检测请求"},
+                {"tool": "fetch", "server": "fetch", "reason": "send a vulnerability-probe request"},
+                {"tool": "send_http1_request", "server": "burp", "reason": "craft a detection request through the proxy"},
             ],
             "漏洞利用": [
-                {"tool": "send_http1_request", "server": "burp", "reason": "构造利用请求"},
-                {"tool": "fetch", "server": "fetch", "reason": "发送利用 payload"},
-                {"tool": "evaluate_js", "server": "chrome-devtools", "reason": "浏览器内利用"},
+                {"tool": "send_http1_request", "server": "burp", "reason": "craft an exploitation request"},
+                {"tool": "fetch", "server": "fetch", "reason": "send an exploitation payload"},
+                {"tool": "evaluate_js", "server": "chrome-devtools", "reason": "in-browser exploitation"},
             ],
         }
 

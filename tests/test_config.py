@@ -92,6 +92,84 @@ class TestSessionConfig:
         assert config.evidence_min_report_level == "L4"
 
 
+class TestSafetyConfig:
+    """Test SafetyConfig deny-by-default posture."""
+
+    def test_python_execute_disabled_by_default(self):
+        from vulnclaw.config.schema import SafetyConfig
+
+        config = SafetyConfig()
+        # High-risk capability must be off unless explicitly opted in.
+        assert config.enable_python_execute is False
+        assert config.python_execute_require_confirmation is True
+        assert config.python_execute_mode == "safe"
+        assert config.python_execute_allow_network is False
+
+    def test_sandbox_limit_defaults(self):
+        from vulnclaw.config.schema import SafetyConfig
+
+        config = SafetyConfig()
+        assert config.python_execute_timeout_seconds == 30
+        assert config.python_execute_max_memory_mb == 256
+        assert config.python_execute_max_file_size_mb == 10
+        assert config.python_execute_max_output_chars == 8000
+
+
+class TestScopeConfig:
+    """Test ScopeConfig deny-by-default posture."""
+
+    def test_default_values(self):
+        from vulnclaw.config.schema import ScopeConfig
+
+        config = ScopeConfig()
+        assert config.enforce is True
+        assert config.allow_localhost is True
+        assert config.allow_private_lab is False
+        assert config.allow_public is False
+        assert config.scope_file == ""
+
+
+class TestAuditConfig:
+    """Test AuditConfig defaults."""
+
+    def test_default_values(self):
+        from vulnclaw.config.schema import AuditConfig
+
+        config = AuditConfig()
+        assert config.enabled is True
+        assert config.hash_chain is True
+        assert config.audit_dir == ""
+
+
+class TestApprovalConfig:
+    """Test ApprovalConfig defaults (require approval, no silent auto-approve)."""
+
+    def test_default_values(self):
+        from vulnclaw.config.schema import ApprovalConfig
+
+        config = ApprovalConfig()
+        assert config.require_approval is True
+        assert config.mode == "non-interactive"
+        assert config.approval_file == ""
+
+
+class TestRiskyToolsConfig:
+    """Test RiskyToolsConfig deny-by-default posture."""
+
+    def test_all_disabled_by_default(self):
+        from vulnclaw.config.schema import RiskyToolsConfig
+
+        config = RiskyToolsConfig()
+        assert config.enable_exploit is False
+        assert config.enable_post_exploitation is False
+        assert config.enable_waf_bypass is False
+        assert config.enable_persistent is False
+        assert config.enable_poc_generation is False
+        assert config.enable_js_secret_extraction is False
+        assert config.enable_osint is False
+        assert config.enable_brute_force is False
+
+
 class TestVulnClawConfig:
     """Test VulnClawConfig schema."""
 
@@ -103,6 +181,20 @@ class TestVulnClawConfig:
         assert isinstance(config.mcp.servers, dict)
         assert config.session.reasoning_state_enabled is True
         assert config.session.reflexion_enabled is True
+
+    def test_has_scope_and_audit_sections(self):
+        from vulnclaw.config.schema import AuditConfig, ScopeConfig, VulnClawConfig
+
+        config = VulnClawConfig()
+        assert isinstance(config.scope, ScopeConfig)
+        assert isinstance(config.audit, AuditConfig)
+
+    def test_has_approval_and_risky_sections(self):
+        from vulnclaw.config.schema import ApprovalConfig, RiskyToolsConfig, VulnClawConfig
+
+        config = VulnClawConfig()
+        assert isinstance(config.approval, ApprovalConfig)
+        assert isinstance(config.risky_tools, RiskyToolsConfig)
 
     def test_mcp_builtin_servers(self):
         from vulnclaw.config.schema import BUILTIN_MCP_SERVERS, VulnClawConfig
@@ -349,3 +441,44 @@ class TestSettingsLoad:
         settings_mod.save_config(config)
         reloaded = settings_mod.load_config()
         assert reloaded.llm.api_keys == ["x1", "x2"]
+
+    def test_env_var_scope_and_audit_overrides(self, monkeypatch):
+        """Scope/audit/sandbox fields are injectable via environment variables."""
+        from vulnclaw.config.settings import load_config
+
+        monkeypatch.setenv("VULNCLAW_SCOPE_ENFORCE", "false")
+        monkeypatch.setenv("VULNCLAW_SCOPE_ALLOW_PRIVATE_LAB", "true")
+        monkeypatch.setenv("VULNCLAW_SCOPE_FILE", "/tmp/scope.yaml")
+        monkeypatch.setenv("VULNCLAW_AUDIT_ENABLED", "false")
+        monkeypatch.setenv("VULNCLAW_AUDIT_HASH_CHAIN", "false")
+        monkeypatch.setenv("VULNCLAW_SAFETY_PYTHON_EXECUTE_ENABLED", "true")
+        monkeypatch.setenv("VULNCLAW_SAFETY_PYTHON_EXECUTE_ALLOW_NETWORK", "true")
+        monkeypatch.setenv("VULNCLAW_SAFETY_PYTHON_EXECUTE_TIMEOUT_SECONDS", "12")
+
+        config = load_config()
+
+        assert config.scope.enforce is False
+        assert config.scope.allow_private_lab is True
+        assert config.scope.scope_file == "/tmp/scope.yaml"
+        assert config.audit.enabled is False
+        assert config.audit.hash_chain is False
+        assert config.safety.enable_python_execute is True
+        assert config.safety.python_execute_allow_network is True
+        assert config.safety.python_execute_timeout_seconds == 12
+
+    def test_env_var_approval_and_risky_overrides(self, monkeypatch):
+        """Approval + risky-tool switches are injectable via environment variables."""
+        from vulnclaw.config.settings import load_config
+
+        monkeypatch.setenv("VULNCLAW_APPROVAL_REQUIRE", "false")
+        monkeypatch.setenv("VULNCLAW_APPROVAL_MODE", "dry-run")
+        monkeypatch.setenv("VULNCLAW_RISKY_ENABLE_EXPLOIT", "true")
+        monkeypatch.setenv("VULNCLAW_RISKY_ENABLE_OSINT", "true")
+
+        config = load_config()
+
+        assert config.approval.require_approval is False
+        assert config.approval.mode == "dry-run"
+        assert config.risky_tools.enable_exploit is True
+        assert config.risky_tools.enable_osint is True
+        assert config.risky_tools.enable_waf_bypass is False

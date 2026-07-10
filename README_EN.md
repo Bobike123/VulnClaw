@@ -211,7 +211,27 @@ $ vulnclaw --help
 | `vulnclaw config provider <name>` | Switch LLM provider | `vulnclaw config provider deepseek` |
 | `vulnclaw init` | Initialize config files | `vulnclaw init` |
 | `vulnclaw doctor` | Check runtime environment | `vulnclaw doctor` |
+| `vulnclaw doctor --security` | Show security posture (scope/approval/budget/secrets) | `vulnclaw doctor --security` |
+| `vulnclaw scope init` | Write a `.vulnclaw-scope.yaml` authorization template | `vulnclaw scope init` |
+| `vulnclaw scope show` | Show the resolved scope + enforcement | `vulnclaw scope show` |
+| `vulnclaw scope check <target>` | Is a target in scope? (exit 1 if not) | `vulnclaw scope check https://api.target/` |
+| `vulnclaw audit list` | List session audit logs | `vulnclaw audit list` |
+| `vulnclaw audit inspect [file]` | Summarize a session + verify hash chain | `vulnclaw audit inspect` |
+| `vulnclaw audit verify <file>` | Verify an audit chain (exit 1 if tampered) | `vulnclaw audit verify session-x.jsonl` |
 | `vulnclaw web` | Launch local Web UI | `vulnclaw web` / `vulnclaw web --port 8080` |
+
+### 🔒 Safety & Authorization (default-deny)
+
+VulnClaw is **default-deny**: no target beyond localhost is contacted, and no high-risk capability runs, unless you explicitly authorize it. Controls live in `vulnclaw/safety/` and are enforced at a single tool chokepoint:
+
+- **Engagement scope** gates all target-directed traffic via `.vulnclaw-scope.yaml` (`vulnclaw scope init`; deny beats allow).
+- **Human-approval gates** for exploitation, post-exploitation, brute-force, OSINT, PoC generation, browser interaction, and request mutation (`dry-run` / `interactive` / signed `.vulnclaw-approvals.yaml`; no silent auto-approve).
+- **Risky-capability switches** under `risky_tools.*` are all default-off (enabled + in-scope + approved).
+- **Persistent-mode budgets** (`budget.*`) cap duration/cycles/tool-calls; `touch .vulnclaw-STOP` is an emergency stop.
+- **Tamper-evident audit trail** (hash-chained JSONL, secrets redacted); verify with `vulnclaw audit verify`.
+- **Secret protection**: config written `0600`; review everything with `vulnclaw doctor --security`.
+
+See [SECURITY.md](SECURITY.md). You must hold written authorization for every target you place in scope.
 
 ### TUI Workbench
 

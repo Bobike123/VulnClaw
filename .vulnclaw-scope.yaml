@@ -1,0 +1,29 @@
+engagement: "Authorized penetration test for desagaculegume.ro"
+authorized_by: "you@example.com"
+
+allow:
+  domains:
+    - desagaculegume.ro
+  ip_ranges: []
+  ports: []
+  url_prefixes: []
+
+deny:
+  domains: []
+  ip_ranges: []
+
+limits:
+  max_request_rate: 5
+  max_concurrency: 3
+
+allowed_phases:
+  - recon
+  - scan
+  - exploit_validation
+  - report
+
+features:
+  osint: true
+  browser_automation: true
+  burp: true
+  poc_generation: true

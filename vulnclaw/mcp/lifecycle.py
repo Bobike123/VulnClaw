@@ -81,6 +81,7 @@ class MCPLifecycleManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_exception_handler_loop: asyncio.AbstractEventLoop | None = None
         self._task_constraints: Any = None
+        self._scope_validator: Any = None
 
     async def __aenter__(self) -> MCPLifecycleManager:
         self.start_enabled_servers()
@@ -93,7 +94,41 @@ class MCPLifecycleManager:
         """Attach current task constraints for tool-level enforcement."""
         self._task_constraints = constraints
 
+    def set_scope(self, validator: Any) -> None:
+        """Attach the engagement scope validator for egress-level enforcement."""
+        self._scope_validator = validator
+
+    def _check_fetch_scope(self, arguments: dict[str, Any]) -> dict[str, Any] | None:
+        """Defense-in-depth: deny out-of-scope fetch URLs at the egress point.
+
+        The primary gate is ``builtin_tools.execute_mcp_tool``; this guards the
+        case where ``call_tool`` is reached by another path.
+        """
+        validator = self._scope_validator
+        if validator is None or not getattr(validator, "enforce", False):
+            return None
+        url = str(arguments.get("url", "") or "").strip()
+        if not url:
+            return None
+        decision = validator.check_url(url)
+        if decision.allowed:
+            return None
+        return self._tool_result(
+            ok=False,
+            server="fetch",
+            tool="fetch",
+            execution_mode="local",
+            error_type="scope_violation",
+            message=decision.error_message(),
+            suggestion="Add the target to your .vulnclaw-scope.yaml allowlist (with "
+            "authorization) or adjust scope settings.",
+        )
+
     def _check_fetch_constraints(self, arguments: dict[str, Any]) -> dict[str, Any] | None:
+        scope_violation = self._check_fetch_scope(arguments)
+        if scope_violation is not None:
+            return scope_violation
+
         constraints = self._task_constraints
         if constraints is None or constraints.is_empty():
             return None
@@ -265,7 +300,7 @@ class MCPLifecycleManager:
         return started
 
     async def _preinit_chrome_devtools(self) -> None:
-        """预初始化 chrome-devtools: 提前建 session + 发现工具."""
+        """Pre-initialize chrome-devtools: build the session and discover tools early."""
         try:
             await self._get_or_create_persistent_stdio_session("chrome-devtools")
         except BaseException:
@@ -518,7 +553,7 @@ class MCPLifecycleManager:
                 if subs:
                     detail = "; ".join(str(s) for s in subs)
             if "already connected" in detail.lower():
-                detail += " (请重启 MCP 服务或关闭旧客户端连接)"
+                detail += " (restart the MCP service or close the old client connection)"
             return False, detail, []
 
     def _probe_sse_server(
@@ -1663,9 +1698,9 @@ class MCPLifecycleManager:
             return result
 
         except ImportError:
-            return "[!] httpx 未安装，无法执行 fetch 请求"
+            return "[!] httpx is not installed; cannot perform the fetch request"
         except Exception as e:
-            return f"[!] fetch 请求失败: {e}"
+            return f"[!] fetch request failed: {e}"
 
     async def _call_memory(self, tool_name: str, args: dict) -> str:
         """Execute a memory tool call (local implementation)."""
@@ -1675,11 +1710,11 @@ class MCPLifecycleManager:
 
         if tool_name == "save":
             store.save(args.get("key", ""), args.get("value", ""))
-            return f"[+] 已保存: {args.get('key', '')}"
+            return f"[+] Saved: {args.get('key', '')}"
         elif tool_name == "retrieve":
             value = store.retrieve(args.get("key", ""))
-            return str(value) if value else "[-] 未找到"
-        return "[!] 未知 memory 工具"
+            return str(value) if value else "[-] Not found"
+        return "[!] Unknown memory tool"
 
     async def _call_attached_server(
         self, server_name: str, tool_name: str, args: dict

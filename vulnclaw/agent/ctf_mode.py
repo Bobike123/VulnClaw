@@ -51,6 +51,15 @@ def update_ctf_state(agent: AgentContext, response_text: str, result_should_cont
             "成功找到",
             "解题完成",
             "解题成功",
+            "verification passed",
+            "verification succeeded",
+            "reproduced successfully",
+            "flag is correct",
+            "submitted successfully",
+            "flag obtained",
+            "successfully obtained",
+            "successfully found",
+            "solved",
         ]
         if any(marker in response_text.lower() for marker in verification_markers):
             agent.runtime.flag_verified = True

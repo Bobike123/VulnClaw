@@ -1,0 +1,55 @@
+# VulnClaw engagement scope — the authorization boundary for ALL target activity.
+#
+# VulnClaw is DEFAULT-DENY:
+# only what is listed here, plus localhost, is in scope.
+# This scope allows desagaculegume.ro, all subdomains, all ports, and all URL paths.
+
+engagement: "Authorized penetration test for desagaculegume.ro"
+authorized_by: "you@example.com"
+
+allow:
+  # Allows:
+  # - desagaculegume.ro
+  # - www.desagaculegume.ro
+  # - any-subdomain.desagaculegume.ro
+  domains:
+    - desagaculegume.ro
+
+  # No direct IP ranges are allowlisted.
+  # The agent should target the allowed domain names, not arbitrary public IPs.
+  ip_ranges: []
+
+  # Empty = any port on in-scope hosts.
+  ports: []
+
+  # Empty = any page/path on in-scope hosts.
+  # This is required if you want all pages and all subdomains allowed.
+  url_prefixes: []
+
+deny:
+  # Nothing under desagaculegume.ro is carved out.
+  domains: []
+  ip_ranges: []
+
+limits:
+  max_request_rate: 5
+  max_concurrency: 3
+
+allowed_phases:
+  - recon
+  - scan
+  - exploit_validation
+  - report
+
+features:
+  # Enables public subdomain discovery for desagaculegume.ro.
+  osint: true
+
+  # Enables browser-based crawling/navigation if VulnClaw supports it.
+  browser_automation: true
+
+  # Enables Burp Suite integration if configured.
+  burp: true
+
+  # Enables proof-of-concept generation inside the authorized scope.
+  poc_generation: true

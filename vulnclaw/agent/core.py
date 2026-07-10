@@ -176,6 +176,13 @@ class AgentCore:
         self.context.state.task_constraints = self.runtime.task_constraints
         if self.mcp_manager and hasattr(self.mcp_manager, "set_task_constraints"):
             self.mcp_manager.set_task_constraints(self.context.state.task_constraints)
+        if self.mcp_manager and hasattr(self.mcp_manager, "set_scope"):
+            try:
+                from vulnclaw.safety.scope import ScopeValidator
+
+                self.mcp_manager.set_scope(ScopeValidator.from_config(self.config))
+            except Exception:
+                pass
 
         self.context.state.recon_dimensions_completed = {
             "server": False,

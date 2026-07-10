@@ -139,7 +139,7 @@ async def test_space_search_missing_key_reports_gracefully(monkeypatch):
     monkeypatch.setattr(recon_tools, "_make_client", lambda cfg: _FakeClient(lambda *a: _Resp()))
     agent = _agent(ReconConfig())  # no keys
     res = await recon_tools.execute_space_search(agent, {"engine": "fofa", "domain": "x.com"})
-    assert "未配置" in res
+    assert "not configured" in res
 
 
 async def test_space_search_quake_uses_token_header_and_post(monkeypatch):
@@ -173,7 +173,7 @@ async def test_dir_enum_aborts_on_global_200(monkeypatch):
     monkeypatch.setattr(recon_tools, "_make_client", lambda cfg: _FakeClient(router))
     agent = _agent(ReconConfig())
     res = await recon_tools.execute_dir_enum(agent, {"url": "http://t.example.com"})
-    assert "终止" in res and "200" in res
+    assert "aborted" in res and "200" in res
 
 
 async def test_dir_enum_filters_and_reports_hits(monkeypatch):
@@ -213,7 +213,7 @@ async def test_unauth_classify():
     assert recon_tools._classify_unauth(404, "x", "")[1] is False
     # 200 returning JSON data → lead
     v, lead = recon_tools._classify_unauth(200, '{"users":[1,2,3]}', "application/json")
-    assert lead is True and "未授权" in v
+    assert lead is True and "unauthorized" in v
     # 200 but login page → not a lead
     v2, lead2 = recon_tools._classify_unauth(200, "请登录后访问", "text/html")
     assert lead2 is False
@@ -234,7 +234,7 @@ async def test_unauth_test_skips_destructive_and_flags_data(monkeypatch):
         "base_url": "http://t.example.com",
         "endpoints": ["/api/user/list", "/api/user/profile", "/api/user/delete?id=1"],
     })
-    assert "跳过(破坏性接口)" in res  # delete endpoint skipped
+    assert "skip (destructive endpoint)" in res  # delete endpoint skipped
     assert "/api/user/list" in res
 
 
@@ -255,7 +255,7 @@ async def test_js_recon_auto_probes_endpoints(monkeypatch):
     agent = _agent(ReconConfig())
     res = await recon_tools.execute_js_recon(agent, {"url": "http://t.example.com/index.html"})
     # discovered endpoint should appear in the auto unauth-probe section
-    assert "未授权访问探测" in res
+    assert "Unauthorized-access probe" in res
     assert "/api/v1/admin/users" in res
 
 

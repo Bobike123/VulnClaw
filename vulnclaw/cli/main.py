@@ -108,14 +108,14 @@ class TerminalStreamSink:
         """Receive content token."""
         # If we printed status and now getting content, move to new line
         if self._status_printed and not self._in_thinking:
-            self._console.print()  # 换行到新行
+            self._console.print()  # move to a new line
             self._status_printed = False
         self._console.print(token, end="", soft_wrap=True)
 
     def on_tool_call(self, tool_name: str, args: str) -> None:
         """Display tool call notification."""
         self._console.print()
-        self._console.print(f"[bold cyan]→ 调用工具: {tool_name}[/] {args[:100]}")
+        self._console.print(f"[bold cyan]→ Calling tool: {tool_name}[/] {args[:100]}")
         self._status_printed = False
 
     def on_tool_result(self, result_summary: str) -> None:
@@ -123,7 +123,7 @@ class TerminalStreamSink:
         self._console.print()
         if len(result_summary) > 200:
             result_summary = result_summary[:200] + "..."
-        self._console.print(f"[dim]→ 工具结果: {result_summary}[/]")
+        self._console.print(f"[dim]→ Tool result: {result_summary}[/]")
 
     def on_stream_end(self) -> None:
         """Handle stream end."""
@@ -188,15 +188,16 @@ def _make_solve_event_printer(target_console):
             decision = payload.get("decision") or {}
             complete_flag = decision.get("complete")
             if complete_flag is not None and complete_flag is not False:
-                # 完成声明留给校验后的 completed / complete_rejected 事件输出，
-                # 避免「先打目标达成、后被拒绝」的错位
+                # Leave the completion claim to the post-validation completed /
+                # complete_rejected events, to avoid a "goal reached then
+                # rejected" ordering glitch.
                 pass
             elif decision.get("intents"):
                 target_console.print(
-                    f"[cyan]◆ Reason:[/cyan] 提出 {len(decision['intents'])} 个新探索方向"
+                    f"[cyan]◆ Reason:[/cyan] proposed {len(decision['intents'])} new exploration directions"
                 )
             else:
-                target_console.print("[dim]◆ Reason: 暂不新增方向[/dim]")
+                target_console.print("[dim]◆ Reason: no new directions for now[/dim]")
         elif kind == "frontier_recovery":
             if payload.get("reason") == "fallback_intents":
                 target_console.print(
@@ -209,7 +210,7 @@ def _make_solve_event_printer(target_console):
                     f"no open intents, retry {payload.get('streak', '?')}"
                 )
         elif kind == "completed":
-            target_console.print("[green]✓ Reason: 目标达成[/green]")
+            target_console.print("[green]✓ Reason: goal reached[/green]")
         elif kind == "explore_start":
             target_console.print(
                 f"[yellow]▶ Explore {payload['intent_id']}:[/yellow] {payload['description'][:90]}"
@@ -220,12 +221,12 @@ def _make_solve_event_printer(target_console):
             )
         elif kind == "hallucination":
             target_console.print(
-                f"[red]⚠ 幻觉拦截 {payload['intent_id']}:[/red] 声称的 flag 无真实证据，已拒绝"
+                f"[red]⚠ Hallucination blocked {payload['intent_id']}:[/red] claimed flag has no real evidence, rejected"
             )
         elif kind == "complete_rejected":
-            target_console.print(f"[red]⚠ 拒绝完成:[/red] {payload.get('reason', '')[:90]}")
+            target_console.print(f"[red]⚠ Completion rejected:[/red] {payload.get('reason', '')[:90]}")
         elif kind == "abandon":
-            target_console.print(f"[red]✗ 放弃 {payload['intent_id']}[/red]")
+            target_console.print(f"[red]✗ Abandon {payload['intent_id']}[/red]")
 
     return on_event
 
@@ -738,9 +739,9 @@ def _run_repl() -> None:
                                 console.print()
                                 console.print(
                                     Panel(
-                                        f"{'✅ 目标达成' if done else '⊘ 未达成'} — "
+                                        f"{'✅ Goal reached' if done else '⊘ Not reached'} — "
                                         f"facts={board.get('facts', 0)} intents={board.get('intents', 0)}\n"
-                                        f"原因: {board.get('complete_reason') or '探索结束'}",
+                                        f"Reason: {board.get('complete_reason') or 'exploration finished'}",
                                         title="Solve",
                                         border_style="green" if done else "yellow",
                                     )
@@ -1144,10 +1145,10 @@ def run(
     orchestrated = asyncio.run(_run())
     if board_holder.get("board"):
         board = board_holder["board"]
-        status = "✅ 目标达成" if board.get("completed") else "⊘ 未达成"
+        status = "✅ Goal reached" if board.get("completed") else "⊘ Not reached"
         console.print(
             f"\n[bold]{status}[/bold] — facts={board.get('facts', 0)} "
-            f"intents={board.get('intents', 0)} 原因: {board.get('complete_reason') or '探索结束'}"
+            f"intents={board.get('intents', 0)} reason: {board.get('complete_reason') or 'exploration finished'}"
         )
     else:
         total_findings = orchestrated.summary["findings_count"]
@@ -1186,9 +1187,10 @@ def solve(
         err_console.print("[!] Configure LLM credentials first (api_key or auth_mode).")
         raise typer.Exit(1)
 
-    resolved_goal = goal or "找到 flag / 拿到 shell / 确认并验证高价值漏洞"
+    resolved_goal = goal or "Find a flag / get a shell / confirm and validate high-value vulnerabilities"
     task_prompt = prompt or (
-        f"对 {target} 进行授权渗透测试。这是明确授权、在范围内的目标。目标(goal)：{resolved_goal}。"
+        f"Perform authorized penetration testing against {target}. This is an explicitly "
+        f"authorized, in-scope target. Goal: {resolved_goal}."
     )
     console.print(f"[*] Target: [bold]{target}[/] | Goal: [bold]{resolved_goal}[/]")
 
@@ -1221,10 +1223,10 @@ def solve(
 
     asyncio.run(_run())
     board = holder.get("board") or {}
-    status = "✅ 目标达成" if board.get("completed") else "⊘ 未达成"
+    status = "✅ Goal reached" if board.get("completed") else "⊘ Not reached"
     console.print(
         f"\n[bold]{status}[/bold] — facts={board.get('facts', 0)} "
-        f"intents={board.get('intents', 0)} 原因: {board.get('complete_reason') or '探索结束'}"
+        f"intents={board.get('intents', 0)} reason: {board.get('complete_reason') or 'exploration finished'}"
     )
 
 
@@ -1519,45 +1521,45 @@ def scan(
 @app.command("network-scan")
 def network_scan(
     target: Optional[str] = typer.Argument(
-        None, help="目标主机/IP/CIDR，默认使用当前连接的 Wi-Fi 子网"
+        None, help="Target host/IP/CIDR; defaults to the currently connected Wi-Fi subnet"
     ),
     profile: str = typer.Option(
         "adaptive",
         "--profile",
-        help="网络扫描画像：adaptive、fast、thorough、stealth",
+        help="Network scan profile: adaptive, fast, thorough, stealth",
     ),
-    ports: Optional[str] = typer.Option(None, "--ports", help="端口范围，如 80,443,1-1000"),
+    ports: Optional[str] = typer.Option(None, "--ports", help="Port range, e.g. 80,443,1-1000"),
     max_rounds: int = typer.Option(
-        0, "--max-rounds", help="Agent 后续跟进轮数（0=使用配置默认值）"
+        0, "--max-rounds", help="Agent follow-up rounds (0 = use config default)"
     ),
     parallel_agents: int = typer.Option(
         1,
         "--parallel-agents",
         min=1,
-        help="在已发现的攻击面上并行派生的子 Agent 数量（1 表示不启用并行）",
+        help="Number of child agents to fan out over discovered attack surfaces (1 = no parallelism)",
     ),
     parallel_depth: int = typer.Option(
         1,
         "--parallel-depth",
         min=1,
-        help="子 Agent 攻击面发现的有界波次数",
+        help="Bounded number of discovery waves for child-agent attack surfaces",
     ),
     worker_rounds: int = typer.Option(
         3,
         "--worker-rounds",
         min=1,
-        help="每个子 Agent worker 的执行轮数",
+        help="Execution rounds per child-agent worker",
     ),
     surface_limit: int = typer.Option(
         20,
         "--surface-limit",
         min=1,
-        help="用于子 Agent 并行派生的最大攻击面数量",
+        help="Maximum attack surfaces used for child-agent fan-out",
     ),
     safe_probes: bool = typer.Option(
         True,
         "--safe-probes/--no-safe-probes",
-        help="nmap 扫描后默认仅执行非破坏性的验证探测",
+        help="After the nmap scan, run only non-destructive verification probes by default",
     ),
     prompt: Optional[str] = typer.Option(
         None, "--prompt", help="Custom natural language prompt (overrides auto-generated prompt)"
@@ -1582,10 +1584,10 @@ def network_scan(
         None, "--snapshot", help="Resume from a specific target snapshot id"
     ),
 ) -> None:
-    """运行基于 nmap 的网络扫描，并对薄弱环节进行跟进。"""
+    """Run an nmap-based network scan and follow up on weak links."""
     normalized_profile = profile.strip().lower()
     if normalized_profile not in {"adaptive", "fast", "thorough", "stealth"}:
-        err_console.print("[!] profile 必须是以下之一: adaptive, fast, thorough, stealth")
+        err_console.print("[!] profile must be one of: adaptive, fast, thorough, stealth")
         raise typer.Exit(1)
 
     detected_wifi = None
@@ -1637,23 +1639,23 @@ def network_scan(
 
     console.print(
         Panel(
-            f"目标: [bold]{scan_target}[/]\n"
+            f"Target: [bold]{scan_target}[/]\n"
             + (
-                f"Wi-Fi 接口: [bold]{detected_wifi.interface}[/] ({detected_wifi.address})\n"
+                f"Wi-Fi interface: [bold]{detected_wifi.interface}[/] ({detected_wifi.address})\n"
                 if detected_wifi
                 else ""
             )
             +
-            f"画像: [bold]{normalized_profile}[/]\n"
-            f"端口: [bold]{ports or '画像默认'}[/]\n"
-            f"跟进策略: [bold]{'安全探测' if safe_probes else '仅摘要'}[/]\n"
-            f"并行 Agent 数: [bold]{parallel_agents}[/]"
+            f"Profile: [bold]{normalized_profile}[/]\n"
+            f"Ports: [bold]{ports or 'profile default'}[/]\n"
+            f"Follow-up: [bold]{'safe probes' if safe_probes else 'summary only'}[/]\n"
+            f"Parallel agents: [bold]{parallel_agents}[/]"
             + (
-                f"（深度 {parallel_depth}，每个 worker {worker_rounds} 轮）"
+                f" (depth {parallel_depth}, {worker_rounds} rounds per worker)"
                 if parallel_agents > 1
                 else ""
             ),
-            title="网络扫描",
+            title="Network Scan",
             border_style="cyan",
         )
     )
@@ -2085,7 +2087,11 @@ def logout() -> None:
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    security: bool = typer.Option(
+        False, "--security", help="Show the safety/authorization posture (scope, approval, budget, secrets)"
+    ),
+) -> None:
     """Inspect the VulnClaw runtime environment."""
     import shutil
 
@@ -2174,6 +2180,9 @@ def doctor() -> None:
         "[dim]The knowledge-base update flow is live; retrieval enhancements can continue independently.[/]"
     )
 
+    if security:
+        _print_security_report(config)
+
     console.print()
     if has_key:
         console.print("[green]Environment ready. Run [bold]vulnclaw[/] to start.[/]")
@@ -2186,6 +2195,296 @@ def doctor() -> None:
 
 # 鈹€鈹€ KB command 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
+# ── Security report (shared by `doctor --security`) ─────────────────────
+
+
+def _print_security_report(config: Any) -> None:
+    """Render the safety/authorization posture: scope, approval, budget, secrets."""
+    from vulnclaw.config.settings import CONFIG_FILE
+    from vulnclaw.safety.credentials import audit_sensitive_files
+    from vulnclaw.safety.scope import ScopeValidator, _resolve_scope_path
+
+    console.print()
+    console.print("[bold]Security Posture[/]:")
+
+    # Scope
+    scope = config.scope
+    scope_path = _resolve_scope_path(config)
+    enforce_c = "green" if scope.enforce else "red"
+    console.print(
+        f"  Scope: enforce=[{enforce_c}]{scope.enforce}[/] "
+        f"localhost={scope.allow_localhost} private_lab={scope.allow_private_lab} "
+        f"public=[{'red' if scope.allow_public else 'green'}]{scope.allow_public}[/]"
+    )
+    console.print(
+        f"    scope file: {'[green]' + str(scope_path) + '[/]' if scope_path else '[yellow]none (defaults: localhost only)[/]'}"
+    )
+    if not scope.enforce:
+        console.print("    [red]! scope enforcement is OFF — the central authorization boundary is disabled[/]")
+
+    # Approval
+    approval = config.approval
+    console.print(
+        f"  Approval: require=[{'green' if approval.require_approval else 'red'}]{approval.require_approval}[/] "
+        f"mode=[bold]{approval.mode}[/]"
+    )
+
+    # python_execute
+    py_enabled = config.safety.enable_python_execute
+    console.print(
+        f"  python_execute: [{'yellow' if py_enabled else 'green'}]"
+        f"{'ENABLED' if py_enabled else 'disabled'}[/] "
+        f"(mode={getattr(config.safety, 'python_execute_mode', 'safe')})"
+    )
+
+    # Risky tools
+    risky = config.risky_tools
+    enabled_caps = [
+        name.replace("enable_", "")
+        for name, val in risky.model_dump().items()
+        if val
+    ]
+    if enabled_caps:
+        console.print(f"  Risky capabilities enabled: [yellow]{', '.join(enabled_caps)}[/]")
+    else:
+        console.print("  Risky capabilities enabled: [green]none (all default-deny)[/]")
+
+    # Budget
+    budget = config.budget
+    ceilings = []
+    if budget.max_duration_minutes:
+        ceilings.append(f"{budget.max_duration_minutes}min")
+    if budget.max_cycles:
+        ceilings.append(f"{budget.max_cycles} cycles")
+    if budget.max_tool_calls:
+        ceilings.append(f"{budget.max_tool_calls} tool calls")
+    console.print(
+        f"  Persistent budget: enabled={budget.enabled} "
+        f"ceilings={', '.join(ceilings) if ceilings else 'none (unlimited)'} "
+        f"(emergency stop: touch .vulnclaw-STOP)"
+    )
+
+    # Audit
+    console.print(
+        f"  Audit log: [{'green' if config.audit.enabled else 'red'}]"
+        f"{'on' if config.audit.enabled else 'off'}[/] hash_chain={config.audit.hash_chain}"
+    )
+
+    # Secret file permissions
+    candidates = [CONFIG_FILE]
+    if scope_path:
+        candidates.append(scope_path)
+    findings = audit_sensitive_files(candidates)
+    if findings:
+        console.print("  Secret file permissions: [red]loose[/]")
+        for finding in findings:
+            console.print(f"    [red]![/] {finding.message()}")
+    else:
+        console.print("  Secret file permissions: [green]owner-only[/]")
+
+    # Validator sanity line
+    try:
+        validator = ScopeValidator.from_config(config)
+        console.print(f"  [dim]{validator.summary}[/]")
+    except Exception:
+        pass
+
+
+# ── Scope commands ──────────────────────────────────────────────────────
+
+scope_app = typer.Typer(help="Inspect and manage the engagement scope (authorization boundary)")
+app.add_typer(scope_app, name="scope")
+
+
+_SCOPE_TEMPLATE = """\
+# VulnClaw engagement scope — the authorization boundary for ALL target activity.
+# VulnClaw is DEFAULT-DENY: only what is listed here (plus localhost) is in scope.
+# You are responsible for having written authorization for every target in scope.
+
+engagement: "Authorized engagement — describe it here"
+authorized_by: "you@example.com"
+
+allow:
+  domains:
+    - localhost
+    - example-lab.test
+  ip_ranges:
+    - 127.0.0.1/32
+  ports:
+    - 80
+    - 443
+    - 8080
+
+deny:
+  domains: []
+  ip_ranges: []
+
+limits:
+  max_request_rate: 5
+  max_concurrency: 3
+
+# High-risk phases stay OFF unless listed here.
+allowed_phases:
+  - recon
+  - scan
+  # - exploit_validation
+
+# Capability toggles — all default-deny.
+features:
+  osint: false
+  browser_automation: false
+  burp: false
+  poc_generation: false
+"""
+
+
+@scope_app.command("show")
+def scope_show() -> None:
+    """Show the resolved engagement scope and enforcement settings."""
+    from vulnclaw.safety.scope import ScopeValidator, _resolve_scope_path, load_scope
+
+    config = load_config()
+    path = _resolve_scope_path(config)
+    scope = load_scope(config)
+    console.print("[bold]Engagement Scope[/]")
+    console.print(f"  loaded from: {path or '[yellow]<defaults: localhost only>[/]'}")
+    if scope.loaded_from.startswith("<invalid"):
+        console.print(f"  [red]{scope.loaded_from}[/]")
+    console.print(f"  enforce: [{'green' if config.scope.enforce else 'red'}]{config.scope.enforce}[/]")
+    console.print(f"  allow_localhost: {config.scope.allow_localhost}")
+    console.print(f"  allow_private_lab: {config.scope.allow_private_lab}")
+    console.print(f"  allow_public: [{'red' if config.scope.allow_public else 'green'}]{config.scope.allow_public}[/]")
+    console.print(f"  allow.domains: {scope.allow.domains or '[]'}")
+    console.print(f"  allow.ip_ranges: {scope.allow.ip_ranges or '[]'}")
+    console.print(f"  allow.ports: {scope.allow.ports or '[](any)'}")
+    console.print(f"  deny.domains: {scope.deny.domains or '[]'}")
+    console.print(f"  deny.ip_ranges: {scope.deny.ip_ranges or '[]'}")
+    console.print(f"  allowed_phases: {scope.allowed_phases}")
+    console.print(f"  [dim]{ScopeValidator.from_config(config).summary}[/]")
+
+
+@scope_app.command("check")
+def scope_check(
+    target: str = typer.Argument(..., help="Host or URL to test against the scope"),
+) -> None:
+    """Check whether a target is in scope (deny-by-default)."""
+    from vulnclaw.safety.scope import ScopeValidator
+
+    config = load_config()
+    validator = ScopeValidator.from_config(config)
+    decision = validator.check_url(target) if "://" in target else validator.check_host(target)
+    if decision.allowed:
+        console.print(f"[green]IN SCOPE[/]: {target}  [dim]({decision.reason})[/]")
+    else:
+        console.print(f"[red]OUT OF SCOPE[/]: {target}  [dim]({decision.reason})[/]")
+        raise typer.Exit(code=1)
+
+
+@scope_app.command("init")
+def scope_init(
+    path: str = typer.Option(".vulnclaw-scope.yaml", "--path", help="Where to write the scope file"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing file"),
+) -> None:
+    """Write a starter scope file to the working directory."""
+    from pathlib import Path as _Path
+
+    dest = _Path(path).expanduser()
+    if dest.exists() and not force:
+        console.print(f"[yellow]{dest} already exists. Use --force to overwrite.[/]")
+        raise typer.Exit(code=1)
+    dest.write_text(_SCOPE_TEMPLATE, encoding="utf-8")
+    console.print(f"[green]Wrote scope template to {dest}[/]")
+    console.print("[dim]Edit it, then VulnClaw enforces it automatically for target activity.[/]")
+
+
+# ── Audit commands ──────────────────────────────────────────────────────
+
+audit_app = typer.Typer(help="Inspect the tamper-evident audit trail")
+app.add_typer(audit_app, name="audit")
+
+
+def _audit_dir(config: Any):
+    from pathlib import Path as _Path
+
+    from vulnclaw.config.settings import AUDIT_DIR
+
+    configured = str(getattr(config.audit, "audit_dir", "") or "").strip()
+    return _Path(configured).expanduser() if configured else AUDIT_DIR
+
+
+@audit_app.command("list")
+def audit_list() -> None:
+    """List session audit files, newest first."""
+    config = load_config()
+    audit_dir = _audit_dir(config)
+    files = sorted(audit_dir.glob("session-*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        console.print(f"[yellow]No audit files in {audit_dir}[/]")
+        return
+    console.print(f"[bold]Audit sessions[/] ([dim]{audit_dir}[/]):")
+    for f in files:
+        lines = sum(1 for _ln in f.read_text(encoding="utf-8").splitlines() if _ln.strip())
+        console.print(f"  {f.name}  [dim]{lines} events[/]")
+
+
+@audit_app.command("inspect")
+def audit_inspect(
+    file: Optional[str] = typer.Argument(None, help="Audit file (default: most recent session)"),
+) -> None:
+    """Summarize an audit session and verify its hash chain."""
+    from vulnclaw.safety.audit import summarize
+
+    config = load_config()
+    if file:
+        from pathlib import Path as _Path
+
+        target = _Path(file).expanduser()
+    else:
+        audit_dir = _audit_dir(config)
+        files = sorted(audit_dir.glob("session-*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not files:
+            console.print(f"[yellow]No audit files in {audit_dir}[/]")
+            raise typer.Exit(code=1)
+        target = files[0]
+
+    summary = summarize(target)
+    if not summary["exists"]:
+        console.print(f"[red]Not found: {target}[/]")
+        raise typer.Exit(code=1)
+    console.print(f"[bold]Audit summary[/]: {target}")
+    console.print(f"  session: {summary['session_id']}  started: {summary['started_at']}")
+    console.print(f"  events: {summary['event_count']}  {summary['events_by_type']}")
+    console.print(f"  targets: {summary['targets'] or '[]'}")
+    chain = summary["chain_valid"]
+    console.print(f"  chain: [{'green' if chain else 'red'}]{'intact' if chain else 'BROKEN / tampered'}[/]")
+    if summary["denied"]:
+        console.print(f"  [yellow]denied actions: {len(summary['denied'])}[/]")
+        for d in summary["denied"][:10]:
+            console.print(f"    - {d.get('action')} {d.get('target')} [dim]{d.get('reason')}[/]")
+    if summary["errors"]:
+        console.print(f"  [red]errors: {len(summary['errors'])}[/]")
+
+
+@audit_app.command("verify")
+def audit_verify(
+    file: str = typer.Argument(..., help="Audit file to verify"),
+) -> None:
+    """Verify the hash chain of an audit file (exit 1 if broken)."""
+    from pathlib import Path as _Path
+
+    from vulnclaw.safety.audit import verify_chain
+
+    target = _Path(file).expanduser()
+    if not target.exists():
+        console.print(f"[red]Not found: {target}[/]")
+        raise typer.Exit(code=1)
+    if verify_chain(target):
+        console.print(f"[green]Chain intact[/]: {target}")
+    else:
+        console.print(f"[red]Chain BROKEN (tampered or truncated)[/]: {target}")
+        raise typer.Exit(code=1)
+
+
 kb_app = typer.Typer(help="Security knowledge base commands")
 app.add_typer(kb_app, name="kb")
 
@@ -2197,7 +2496,7 @@ app.add_typer(plugins_app, name="plugins")
 
 
 def _parse_kv_options(pairs: Optional[list[str]]) -> dict[str, object]:
-    """把 --option key=value（可重复）解析为 dict，value 优先按 JSON 解析。"""
+    """Parse --option key=value (repeatable) into a dict; values are parsed as JSON first."""
     import json as _json
 
     options: dict[str, object] = {}
@@ -2404,11 +2703,11 @@ def kb_status() -> None:
     category_summary = ", ".join(f"{cat}={count}" for cat, count in sorted(stats.items()))
 
     if status == RetrieverStatus.CHROMADB_ACTIVE:
-        line = "[green]✓ 知识库已启用 (ChromaDB 语义检索)[/green]"
+        line = "[green]✓ Knowledge base enabled (ChromaDB semantic search)[/green]"
     elif status == RetrieverStatus.KEYWORD_FALLBACK:
-        line = "[yellow]⚠ 知识库已降级为关键词模式 (chromadb 未安装)[/yellow]"
+        line = "[yellow]⚠ Knowledge base degraded to keyword mode (chromadb not installed)[/yellow]"
     else:
-        line = "[red]✗ 知识库已禁用 (无可用数据)[/red]"
+        line = "[red]✗ Knowledge base disabled (no data available)[/red]"
 
     console.print(
         Panel(
@@ -2416,7 +2715,7 @@ def kb_status() -> None:
             f"Backend: [bold]{status.value}[/]\n"
             f"Detail: {detail or 'n/a'}\n"
             f"Entries: [bold]{total}[/] ({category_summary or 'empty'})\n"
-            f"语义搜索: 运行 [bold]pip install vulnclaw\\[kb][/] 启用 ChromaDB",
+            f"Semantic search: run [bold]pip install vulnclaw\\[kb][/] to enable ChromaDB",
             title="KB Status",
             border_style="cyan",
         )

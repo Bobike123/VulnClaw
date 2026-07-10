@@ -16,6 +16,7 @@ class DummySession:
 
 class DummySafety:
     def __init__(self):
+        # Tests opt python_execute in explicitly; the product default is False.
         self.enable_python_execute = True
         self.python_execute_restricted = False
         self.python_execute_mode = "trusted-local"
@@ -23,11 +24,28 @@ class DummySafety:
         self.python_execute_show_warning = False
         self.python_execute_max_output_chars = 8000
         self.python_execute_audit_enabled = True
+        self.python_execute_allow_network = False
+        self.python_execute_timeout_seconds = 30
+        self.python_execute_max_memory_mb = 1024
+        self.python_execute_max_file_size_mb = 10
+        self.python_execute_require_confirmation = False
+
+
+class DummyScope:
+    def __init__(self):
+        # These tests exercise dispatch mechanics; scope is tested separately in
+        # test_scope_enforcement.py, so keep enforcement off here.
+        self.enforce = False
+        self.scope_file = ""
+        self.allow_localhost = True
+        self.allow_private_lab = False
+        self.allow_public = False
 
 
 class DummyConfig:
     def __init__(self):
         self.safety = DummySafety()
+        self.scope = DummyScope()
 
 
 class DummyAgent:
@@ -39,23 +57,18 @@ class DummyAgent:
 
 
 class TestBuiltinPythonExecute:
-    async def test_safe_mode_blocks_network_access(self, monkeypatch, tmp_path):
+    async def test_disabled_by_default_is_blocked(self):
         import vulnclaw.agent.builtin_tools as builtin_tools
 
         agent = DummyAgent()
-        agent.config.safety.python_execute_mode = "safe"
-        monkeypatch.setattr(builtin_tools, "_write_python_audit", lambda *args, **kwargs: None)
+        agent.config.safety.enable_python_execute = False
 
         result = await builtin_tools.execute_python(
-            agent,
-            {
-                "code": "import requests\nprint(requests.get('https://example.com').status_code)",
-                "purpose": "recon",
-            },
+            agent, {"code": "print('x')", "purpose": "demo"}
         )
-        assert "safe mode blocked operation" in result
+        assert "DISABLED" in result
 
-    async def test_lab_mode_blocks_subprocess(self, monkeypatch):
+    async def test_precheck_blocks_subprocess(self, monkeypatch):
         import vulnclaw.agent.builtin_tools as builtin_tools
 
         agent = DummyAgent()
@@ -66,7 +79,41 @@ class TestBuiltinPythonExecute:
             agent,
             {"code": "import subprocess\nprint('x')", "purpose": "local helper"},
         )
-        assert "lab mode blocked operation" in result
+        assert "blocked" in result.lower()
+        assert "subprocess" in result
+
+    async def test_safe_mode_blocks_network_access(self, monkeypatch):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        agent.config.safety.python_execute_mode = "safe"
+        monkeypatch.setattr(builtin_tools, "_write_python_audit", lambda *args, **kwargs: None)
+
+        result = await builtin_tools.execute_python(
+            agent,
+            {"code": "import socket\nsocket.socket()", "purpose": "recon"},
+        )
+        assert "network" in result.lower()
+
+    async def test_safe_mode_blocks_unsafe_fs_read(self, monkeypatch):
+        import os
+
+        import pytest
+
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        if not os.path.exists("/etc/passwd"):
+            pytest.skip("needs /etc/passwd")
+
+        agent = DummyAgent()
+        agent.config.safety.python_execute_mode = "safe"
+        monkeypatch.setattr(builtin_tools, "_write_python_audit", lambda *args, **kwargs: None)
+
+        result = await builtin_tools.execute_python(
+            agent,
+            {"code": "print(open('/etc/passwd').read())", "purpose": "read"},
+        )
+        assert "access denied" in result or "blocked" in result.lower()
 
     async def test_trusted_local_allows_basic_code(self, monkeypatch):
         import vulnclaw.agent.builtin_tools as builtin_tools
@@ -94,18 +141,45 @@ class TestBuiltinPythonExecute:
 
         builtin_tools._write_python_audit(
             agent,
-            purpose="demo",
             code="print('x')",
+            purpose="demo",
             mode="safe",
-            outcome="blocked",
-            blocked_reason="requests",
+            status="blocked",
+            decision="blocked",
+            blocked_reason="subprocess",
         )
 
         content = (tmp_path / "python_execute_audit.jsonl").read_text(encoding="utf-8").strip()
         record = json.loads(content)
         assert record["mode"] == "safe"
-        assert record["outcome"] == "blocked"
-        assert record["blocked_reason"] == "requests"
+        assert record["status"] == "blocked"
+        assert record["decision"] == "blocked"
+        assert record["blocked_reason"] == "subprocess"
+        assert record["code_sha256"]
+        assert "code_preview" in record
+
+    async def test_audit_redacts_secrets(self, monkeypatch, tmp_path):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        monkeypatch.setattr(
+            "vulnclaw.config.settings.PYTHON_EXECUTE_AUDIT_FILE",
+            tmp_path / "python_execute_audit.jsonl",
+        )
+        monkeypatch.setattr("vulnclaw.config.settings.ensure_dirs", lambda: None)
+
+        secret = "sk-abc123DEF456ghi789JKL012mno345PQR678stu"
+        builtin_tools._write_python_audit(
+            agent,
+            code=f"key = '{secret}'",
+            purpose=f"use {secret}",
+            mode="safe",
+            status="ok",
+        )
+
+        content = (tmp_path / "python_execute_audit.jsonl").read_text(encoding="utf-8")
+        assert secret not in content
+        assert "REDACTED" in content
 
 
 class TestBuiltinMcpExecution:

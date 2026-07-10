@@ -55,17 +55,17 @@ PROVIDER_PRESETS: dict[LLMProvider, dict[str, str]] = {
     LLMProvider.ZHIPU: {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
         "default_model": "glm-4.7",
-        "label": "智谱 GLM",
+        "label": "Zhipu GLM",
     },
     LLMProvider.MOONSHOT: {
         "base_url": "https://api.moonshot.cn/v1",
         "default_model": "kimi-k2.6",
-        "label": "Kimi (月之暗面)",
+        "label": "Kimi (Moonshot)",
     },
     LLMProvider.QWEN: {
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "default_model": "qwen3-max",
-        "label": "通义千问",
+        "label": "Qwen (Tongyi)",
     },
     LLMProvider.SILICONFLOW: {
         "base_url": "https://api.siliconflow.cn/v1",
@@ -75,32 +75,32 @@ PROVIDER_PRESETS: dict[LLMProvider, dict[str, str]] = {
     LLMProvider.DOUBAO: {
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
         "default_model": "Doubao-Seed-2.0-Pro",
-        "label": "豆包 (字节跳动)",
+        "label": "Doubao (ByteDance)",
     },
     LLMProvider.BAICHUAN: {
         "base_url": "https://api.baichuan-ai.com/v1",
         "default_model": "Baichuan4-Turbo",
-        "label": "百川",
+        "label": "Baichuan",
     },
     LLMProvider.STEPFUN: {
         "base_url": "https://api.stepfun.com/v1",
         "default_model": "step-3.5-flash",
-        "label": "阶跃星辰",
+        "label": "StepFun",
     },
     LLMProvider.SENSETIME: {
         "base_url": "https://api.sensenova.cn/v1",
         "default_model": "SenseNova-6.7-Flash-Lite",
-        "label": "商汤 (日日新)",
+        "label": "SenseTime (SenseNova)",
     },
     LLMProvider.YI: {
         "base_url": "https://api.lingyiwanwu.com/v1",
         "default_model": "yi-lightning",
-        "label": "零一万物 (Yi)",
+        "label": "01.AI (Yi)",
     },
     LLMProvider.CUSTOM: {
         "base_url": "",
         "default_model": "",
-        "label": "自定义",
+        "label": "Custom",
     },
 }
 
@@ -208,11 +208,11 @@ class ReconConfig(BaseModel):
 
     fofa_email: str = Field(default="", description="FOFA account email")
     fofa_key: str = Field(default="", description="FOFA API key")
-    hunter_key: str = Field(default="", description="Hunter (奇安信鹰图) API key")
+    hunter_key: str = Field(default="", description="Hunter (QiAnXin Eagle Eye) API key")
     quake_key: str = Field(default="", description="Quake (360) API token")
-    zoomeye_key: str = Field(default="", description="ZoomEye (钟馗之眼) API key")
+    zoomeye_key: str = Field(default="", description="ZoomEye API key")
     shodan_key: str = Field(default="", description="Shodan API key")
-    zerozone_key: str = Field(default="", description="零零信安 0.zone API key")
+    zerozone_key: str = Field(default="", description="0.zone (LingLing Security) API key")
     http_timeout: float = Field(default=15.0, description="Per-request HTTP timeout (s)")
     max_concurrency: int = Field(default=20, description="Max concurrent recon requests")
     space_size: int = Field(default=100, description="Default result size per space-mapping query")
@@ -228,19 +228,38 @@ class ReconConfig(BaseModel):
 
 
 class SafetyConfig(BaseModel):
-    """Safety / sandbox configuration."""
+    """Safety / sandbox configuration.
+
+    Defaults are deliberately deny-by-default: ``python_execute`` is a high-risk
+    capability (arbitrary local code execution) and must be explicitly opted in
+    via config, env, or CLI flag before it will run.
+    """
 
     enable_python_execute: bool = Field(
+        default=False,
+        description="Enable the high-risk python_execute built-in tool. Disabled by "
+        "default; requires an explicit opt-in (config/env/--enable-python-execute).",
+    )
+    python_execute_require_confirmation: bool = Field(
         default=True,
-        description="Enable the python_execute built-in tool (disable for safer runs)",
+        description="Require an explicit interactive confirmation (TTY) before the "
+        "first python_execute run in a session. Non-interactive runs rely on the "
+        "config/env/flag opt-in above.",
     )
     python_execute_restricted: bool = Field(
         default=False,
         description="Restricted mode: block file I/O and network in python_execute",
     )
     python_execute_mode: str = Field(
-        default="trusted-local",
-        description="Execution mode for python_execute: safe, lab, trusted-local",
+        default="safe",
+        description="Execution mode for python_execute: safe (most restrictive, "
+        "default), lab, trusted-local. Higher modes relax the sandbox and must be "
+        "chosen deliberately for authorized lab targets only.",
+    )
+    python_execute_allow_network: bool = Field(
+        default=False,
+        description="Allow outbound network access from python_execute. Disabled by "
+        "default; in-scope HTTP testing should use the fetch tool which is scope-checked.",
     )
     python_execute_max_lines: int = Field(
         default=50,
@@ -250,9 +269,21 @@ class SafetyConfig(BaseModel):
         default=True,
         description="Show a security warning before each python_execute invocation",
     )
+    python_execute_timeout_seconds: int = Field(
+        default=30,
+        description="Wall-clock timeout (seconds) for a single python_execute call",
+    )
+    python_execute_max_memory_mb: int = Field(
+        default=256,
+        description="Max address-space (MB) for a python_execute subprocess (POSIX only)",
+    )
     python_execute_max_output_chars: int = Field(
         default=8000,
         description="Max stdout/stderr characters returned from a python_execute call",
+    )
+    python_execute_max_file_size_mb: int = Field(
+        default=10,
+        description="Max size (MB) of any single file the sandbox may create (POSIX only)",
     )
     python_execute_audit_enabled: bool = Field(
         default=True,
@@ -265,6 +296,160 @@ class SafetyConfig(BaseModel):
     tool_max_concurrent: int = Field(
         default=5,
         description="Max number of tool calls executed concurrently per round (1=serial)",
+    )
+
+
+class ScopeConfig(BaseModel):
+    """Engagement scope enforcement configuration.
+
+    Scope is the central authorization boundary for all target-directed network
+    activity. Defaults are deny-by-default for anything beyond the local machine:
+    localhost is allowed, private lab ranges require an explicit opt-in, and public
+    targets must be allowlisted in a scope file (see ``.vulnclaw-scope.yaml``).
+    """
+
+    enforce: bool = Field(
+        default=True,
+        description="Enforce scope on every target-directed network action. "
+        "Disabling this removes the central authorization boundary — not recommended.",
+    )
+    scope_file: str = Field(
+        default="",
+        description="Path to a .vulnclaw-scope.yaml scope file. When empty, VulnClaw "
+        "looks for ./.vulnclaw-scope.yaml then ~/.vulnclaw/scope.yaml.",
+    )
+    allow_localhost: bool = Field(
+        default=True,
+        description="Allow loopback/localhost targets without an explicit scope file",
+    )
+    allow_private_lab: bool = Field(
+        default=False,
+        description="Allow RFC1918 private-lab ranges without a scope file entry "
+        "(requires deliberate opt-in / confirmation)",
+    )
+    allow_public: bool = Field(
+        default=False,
+        description="Allow public targets without a scope-file allowlist entry. "
+        "Strongly discouraged; public targets should always be explicitly allowlisted.",
+    )
+
+
+class AuditConfig(BaseModel):
+    """Structured audit-log configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Write structured JSONL audit events (tool calls, denials, "
+        "approvals, scope decisions) to the audit log.",
+    )
+    hash_chain: bool = Field(
+        default=True,
+        description="Chain each audit event to the SHA-256 of the previous event for "
+        "tamper-evidence.",
+    )
+    audit_dir: str = Field(
+        default="",
+        description="Directory for audit logs. When empty, uses <config_dir>/audit.",
+    )
+
+
+class ApprovalConfig(BaseModel):
+    """Human-approval gate for high-risk actions.
+
+    Risky actions (exploitation, PoC, credential handling, public OSINT, request
+    mutation, browser form submission, persistent mode) require approval before
+    running. In non-interactive mode approval must come from a signed approval
+    file; there is no silent auto-approve.
+    """
+
+    require_approval: bool = Field(
+        default=True,
+        description="Require explicit human approval before any high-risk action.",
+    )
+    mode: str = Field(
+        default="non-interactive",
+        description="Approval mode: interactive (prompt on a TTY), non-interactive "
+        "(require a matching entry in the approval file), or dry-run (never execute "
+        "risky actions — explain what would happen instead).",
+    )
+    approval_file: str = Field(
+        default="",
+        description="Path to a signed approvals file. When empty, VulnClaw looks for "
+        "./.vulnclaw-approvals.yaml then <config_dir>/approvals.yaml.",
+    )
+
+
+class RiskyToolsConfig(BaseModel):
+    """Per-capability enable switches for high-risk skills. All default-deny.
+
+    A risky capability runs only when it is enabled here AND the scope permits it
+    (phase/feature) AND the action is approved.
+    """
+
+    enable_exploit: bool = Field(default=False, description="Allow exploitation actions")
+    enable_post_exploitation: bool = Field(
+        default=False, description="Allow post-exploitation actions"
+    )
+    enable_waf_bypass: bool = Field(default=False, description="Allow WAF-bypass actions")
+    enable_persistent: bool = Field(default=False, description="Allow persistent autonomous mode")
+    enable_poc_generation: bool = Field(
+        default=False, description="Allow runnable proof-of-concept generation"
+    )
+    enable_js_secret_extraction: bool = Field(
+        default=False,
+        description="Include (redacted, fingerprint-only) JS secret findings; values are "
+        "never shown regardless of this setting",
+    )
+    enable_osint: bool = Field(
+        default=False, description="Allow OSINT / subdomain enumeration against public targets"
+    )
+    enable_brute_force: bool = Field(
+        default=False, description="Allow credential brute-force actions"
+    )
+    enable_browser: bool = Field(
+        default=False,
+        description="Allow active browser interaction (form fill/submit, clicks, in-page "
+        "JavaScript execution) via the chrome-devtools MCP server. Passive browsing "
+        "(navigate/read/screenshot) is never gated.",
+    )
+    enable_request_mutation: bool = Field(
+        default=False,
+        description="Allow sending crafted/raw HTTP requests through a proxy or the browser "
+        "network context (Burp send_http*_request, chrome_network_request). Read-only proxy "
+        "history is never gated.",
+    )
+
+
+class BudgetConfig(BaseModel):
+    """Safety budgets and emergency stop for persistent (open-ended) autonomous runs.
+
+    All ceilings are opt-in: a value of 0 means unlimited for that dimension. The
+    emergency-stop file is a kill switch — creating it halts the run at the next
+    checkpoint regardless of the other limits (and even when ``enabled`` is off).
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enforce duration/cycle/tool-call ceilings during persistent mode. "
+        "The emergency-stop file is honoured even when this is disabled.",
+    )
+    max_duration_minutes: int = Field(
+        default=0,
+        description="Wall-clock ceiling for a persistent run in minutes (0 = unlimited).",
+    )
+    max_cycles: int = Field(
+        default=0,
+        description="Global safety cap on persistent cycles, independent of the "
+        "session's own persistent_max_cycles (0 = unlimited).",
+    )
+    max_tool_calls: int = Field(
+        default=0,
+        description="Ceiling on total tool calls across a persistent run (0 = unlimited).",
+    )
+    emergency_stop_file: str = Field(
+        default="",
+        description="Extra path whose presence halts the run. The defaults "
+        "./.vulnclaw-STOP and ./.vulnclaw-stop are always checked as well.",
     )
 
 
@@ -371,6 +556,11 @@ class VulnClawConfig(BaseModel):
     mcp: MCPServersConfig = Field(default_factory=MCPServersConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
+    scope: ScopeConfig = Field(default_factory=ScopeConfig)
+    audit: AuditConfig = Field(default_factory=AuditConfig)
+    approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
+    risky_tools: RiskyToolsConfig = Field(default_factory=RiskyToolsConfig)
+    budget: BudgetConfig = Field(default_factory=BudgetConfig)
     recon: ReconConfig = Field(default_factory=ReconConfig)
 
     model_config = ConfigDict(

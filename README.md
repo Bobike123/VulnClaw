@@ -263,10 +263,30 @@ $ vulnclaw --help
 | `vulnclaw config provider <name>` | 切换 LLM 提供商 | `vulnclaw config provider minimax` |
 | `vulnclaw init` | 初始化配置文件 | `vulnclaw init` |
 | `vulnclaw doctor` | 检查运行环境 | `vulnclaw doctor` |
+| `vulnclaw doctor --security` | 检查安全态势（范围/审批/预算/密钥权限） | `vulnclaw doctor --security` |
+| `vulnclaw scope init` | 生成 `.vulnclaw-scope.yaml` 授权范围模板 | `vulnclaw scope init` |
+| `vulnclaw scope show` | 查看已解析的授权范围与强制状态 | `vulnclaw scope show` |
+| `vulnclaw scope check <target>` | 检查目标是否在授权范围内（越界退出码 1） | `vulnclaw scope check https://api.target/` |
+| `vulnclaw audit list` | 列出会话审计日志 | `vulnclaw audit list` |
+| `vulnclaw audit inspect [file]` | 汇总会话并校验哈希链（默认最新） | `vulnclaw audit inspect` |
+| `vulnclaw audit verify <file>` | 校验审计日志哈希链（被篡改退出码 1） | `vulnclaw audit verify session-x.jsonl` |
 | `vulnclaw plugins list` | 列出漏洞检测插件 | `vulnclaw plugins list --stage discovery` |
 | `vulnclaw plugins info <id>` | 查看插件元信息 | `vulnclaw plugins info builtin.web.headers` |
 | `vulnclaw plugins run <id>` | 运行插件（仅分析传入数据） | `vulnclaw plugins run builtin.web.headers --input headers.json --session s.json` |
 | `vulnclaw web` | 启动本地 Web UI | `vulnclaw web` / `vulnclaw web --port 8080` |
+
+### 🔒 安全与授权（默认拒绝）
+
+VulnClaw 采用**默认拒绝**模型：除本机外的任何目标、任何高风险能力，都必须显式授权后才会执行。核心控制集中在 `vulnclaw/safety/`，并在唯一的工具调用入口统一强制：
+
+- **授权范围**：所有面向目标的网络活动都要先通过 `.vulnclaw-scope.yaml` 校验（`vulnclaw scope init` 生成模板，拒绝优先于允许）。
+- **人工审批闸门**：利用、后渗透、暴力破解、OSINT、PoC 生成、浏览器交互、请求改写等高风险动作需审批（`dry-run` / `interactive` / 签名的 `.vulnclaw-approvals.yaml`），无静默放行。
+- **风险能力开关**：`risky_tools.*` 全部默认关闭，需同时满足「开关开启 + 范围允许 + 审批通过」。
+- **持续模式预算与急停**：`budget.*` 设置时长/周期/工具调用上限；`touch .vulnclaw-STOP` 可随时中止。
+- **防篡改审计**：会话事件以哈希链 JSONL 记录（密钥自动脱敏），`vulnclaw audit verify` 校验完整性。
+- **密钥保护**：配置文件以 `0600` 写入，`vulnclaw doctor --security` 一键体检安全态势。
+
+详见 [SECURITY.md](SECURITY.md)。你必须对置于范围内的每个目标持有书面授权。
 
 ### TUI 工作台
 

@@ -9,44 +9,44 @@ from vulnclaw.agent.runtime_state import RuntimeState
 from vulnclaw.agent.think_filter import strip_think_tags
 
 PROOF_PATTERNS: list[str] = [
-    r"差异[：: ]*\d+",
+    r"差异[：: ]*\d+|diff(?:erence)?[：: ]*\d+",
     r"\d+\s*bytes|\d+\s*字节",
-    r"(?:状态码|响应码)?[：: ]*5\d{2}",
+    r"(?:状态码|响应码|status code|response code)?[：: ]*5\d{2}",
     r"SQL.*错误|mysql.*error|sql.*error",
     r"SLEEP\(|BENCHMARK\(|EXTRACTVALUE\(|UPDATEXML\(",
     r"命令执行成功|whoami|id\s+",
     r"root[:\s]|administrator",
     r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}",
     r"CVE-\d{4}-\d{4,}",
-    r"成功提取|成功获取|获取到",
+    r"成功提取|成功获取|获取到|extracted|obtained|retrieved",
 ]
 
 NATURAL_LANG_PATTERNS: list[tuple[str, str, str]] = [
-    (r"SQL注入|SQLi|注入漏洞", "High", "SQL注入"),
-    (r"RCE|远程代码执行|命令注入|命令执行", "Critical", "远程代码执行"),
-    (r"未授权|未认证|无需认证|认证绕过|认证.*绕过", "High", "认证绕过"),
+    (r"SQL注入|SQLi|注入漏洞|sql injection", "High", "SQL Injection"),
+    (r"RCE|远程代码执行|命令注入|命令执行|remote code execution|command injection", "Critical", "Remote Code Execution"),
+    (r"未授权|未认证|无需认证|认证绕过|认证.*绕过|unauthorized|auth(?:entication)? bypass", "High", "Auth Bypass"),
     (r"SSRF|服务端请求伪造", "High", "SSRF"),
-    (r"XSS|跨站脚本|存储型XSS|反射型XSS", "Medium", "XSS跨站脚本"),
-    (r"CSRF|跨站请求伪造", "Medium", "CSRF"),
-    (r"文件包含|路径遍历|LFI|RFI", "Medium", "文件包含/遍历"),
-    (r"弱口令|默认口令|默认密码|暴力破解|爆破", "Medium", "弱口令/暴力破解"),
-    (r"配置错误|配置缺陷|泄露.*配置", "Medium", "配置错误"),
-    (r"敏感目录|敏感文件.*发现|目录.*发现", "Info", "敏感目录/文件发现"),
-    (r"版本.*过旧|中间件版本|指纹.*识别", "Info", "版本信息"),
-    (r"CVE-\d{4}-\d{4,}", "High", "已知CVE漏洞"),
+    (r"XSS|跨站脚本|存储型XSS|反射型XSS|cross.site scripting", "Medium", "XSS"),
+    (r"CSRF|跨站请求伪造|cross.site request forgery", "Medium", "CSRF"),
+    (r"文件包含|路径遍历|LFI|RFI|file inclusion|path traversal", "Medium", "File Inclusion / Traversal"),
+    (r"弱口令|默认口令|默认密码|暴力破解|爆破|weak password|default password|brute.force", "Medium", "Weak Password / Brute Force"),
+    (r"配置错误|配置缺陷|泄露.*配置|misconfiguration", "Medium", "Misconfiguration"),
+    (r"敏感目录|敏感文件.*发现|目录.*发现|sensitive (?:directory|file)", "Info", "Sensitive Directory / File"),
+    (r"版本.*过旧|中间件版本|指纹.*识别|outdated version|middleware version", "Info", "Version Info"),
+    (r"CVE-\d{4}-\d{4,}", "High", "Known CVE"),
 ]
 
 ELEVATION_KEYWORDS: list[tuple[str, str, str]] = [
-    (r"泄露|敏感信息|数据泄露|个人信息|\d+条数据", "High", "数据泄露"),
-    (r"未授权|未认证|认证绕过|无需认证", "High", "未授权访问"),
-    (r"RCE|命令执行|远程代码", "Critical", "远程代码执行"),
-    (r"SQL注入|SQLi|注入", "High", "注入漏洞"),
-    (r"CVE-\d{4}-\d{4,}", "High", "已知CVE漏洞"),
-    (r"弱口令|默认口令|暴力", "High", "弱口令/暴力破解"),
-    (r"XSS|跨站脚本", "Medium", "XSS"),
-    (r"文件包含|路径遍历", "High", "文件包含/遍历"),
-    (r"返回200.*不存在|200.*空内容|空响应.*位", "Medium", "潜在授权绕过"),
-    (r"403.*接口|接口存在.*403", "Medium", "403认证拦截"),
+    (r"泄露|敏感信息|数据泄露|个人信息|\d+条数据|leak|sensitive info|data breach", "High", "Data Leak"),
+    (r"未授权|未认证|认证绕过|无需认证|unauthorized|auth bypass", "High", "Unauthorized Access"),
+    (r"RCE|命令执行|远程代码|remote code execution", "Critical", "Remote Code Execution"),
+    (r"SQL注入|SQLi|注入|sql injection", "High", "Injection"),
+    (r"CVE-\d{4}-\d{4,}", "High", "Known CVE"),
+    (r"弱口令|默认口令|暴力|weak password|brute.force", "High", "Weak Password / Brute Force"),
+    (r"XSS|跨站脚本|cross.site scripting", "Medium", "XSS"),
+    (r"文件包含|路径遍历|file inclusion|path traversal", "High", "File Inclusion / Traversal"),
+    (r"返回200.*不存在|200.*空内容|空响应.*位|200.*not exist|empty response", "Medium", "Potential Auth Bypass"),
+    (r"403.*接口|接口存在.*403|403.*endpoint", "Medium", "403 Auth Block"),
 ]
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]]+')
@@ -119,7 +119,7 @@ class FindingParser:
             evidence_pool = clean_response
 
         for pattern, severity, vuln_type in NATURAL_LANG_PATTERNS:
-            canonical_title = f"[自动] {vuln_type}"
+            canonical_title = f"[auto] {vuln_type}"
             if canonical_title in existing_titles:
                 continue
 
@@ -160,9 +160,9 @@ class FindingParser:
                     title=canonical_title,
                     severity=severity,
                     vuln_type=vuln_type,
-                    description=f"自动检测：{vuln_matches[0].strip()[:100]}"
+                    description=f"Auto-detected: {vuln_matches[0].strip()[:100]}"
                     if vuln_matches
-                    else "通过自然语言模式自动检测",
+                    else "Auto-detected via natural-language pattern",
                     evidence=evidence[:300],
                     evidence_level="L2",
                     lifecycle_status="needs_manual_review"
@@ -176,19 +176,19 @@ class FindingParser:
         for fact in confirmed_facts:
             for pattern, severity, vuln_type in ELEVATION_KEYWORDS:
                 if re.search(pattern, fact, re.IGNORECASE):
-                    title = f"[已确认] {fact.strip()[:120]}"
+                    title = f"[confirmed] {fact.strip()[:120]}"
                     if title not in existing_titles:
                         location = _collect_location_summary(evidence_pool)
                         evidence = (
-                            f"{location} | 通过工具验证确认：{fact}"
+                            f"{location} | Confirmed by tool verification: {fact}"
                             if location
-                            else f"通过工具验证确认：{fact}"
+                            else f"Confirmed by tool verification: {fact}"
                         )
                         finding = VulnerabilityFinding(
                             title=title,
                             severity=severity,
                             vuln_type=vuln_type,
-                            description=f"通过工具验证确认：{fact}",
+                            description=f"Confirmed by tool verification: {fact}",
                             evidence=evidence[:300],
                             evidence_level="L4",
                             lifecycle_status="verified",
@@ -219,7 +219,7 @@ class FindingParser:
         clean_response = strip_think_tags(response)
         discovery_markers = [
             r"\[\+\]\s*(.+?)(?:\n|$)",
-            r"发现[：: ]\s*(.+?)(?:\n|$)",
+            r"(?:发现|found)[：: ]\s*(.+?)(?:\n|$)",
             r"(flag\{[^}]+\})",
             r"(NSSCTF\{[^}]+\})",
             r"(CTF\{[^}]+\})",
@@ -231,17 +231,17 @@ class FindingParser:
                     self.context.state.add_note(note)
 
         confirmed_markers = [
-            r"已确认[：: ]\s*(.+?)(?:\n|$)",
-            r"确认[：: ]\s*(.+?)(?:\n|$)",
-            r"验证成功[：: ]\s*(.+?)(?:\n|$)",
+            r"(?:已确认|confirmed)[：: ]\s*(.+?)(?:\n|$)",
+            r"(?:确认|confirm)[：: ]\s*(.+?)(?:\n|$)",
+            r"(?:验证成功|verified)[：: ]\s*(.+?)(?:\n|$)",
             r"\[✅\]\s*(.+?)(?:\n|$)",
-            r"确认.*存在",
-            r"漏洞.*已确认",
-            r"已.*验证.*成功",
+            r"确认.*存在|confirmed.*exists",
+            r"漏洞.*已确认|vulnerability.*confirmed",
+            r"已.*验证.*成功|verification.*succeeded",
             r"payload.*差异[：: ]*\s*\d+",
             r"差异[：: ]*\s*\d+.*成功",
             r"SLEEP\([^)]+\).*耗时",
-            r"成功提取[：: ]*\s*\S+",
+            r"(?:成功提取|extracted)[：: ]*\s*\S+",
             r"提取到[：: ]*\s*\S+",
             r"命令执行成功",
             r"可提取到[：: ]*\s*\S+",
