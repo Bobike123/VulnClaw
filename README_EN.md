@@ -629,6 +629,10 @@ vulnclaw config set session.show_thinking false  # hide thinking process (also i
 | `llm.api_key`                          | empty          | API key (auth_mode=static)                       |
 | `llm.auth_mode`                        | static         | `static` (api_key) or `oauth` (`vulnclaw login`) |
 | `llm.chatgpt_auto_proxy`               | false          | Auto-start built-in ChatGPT-backend bridge proxy |
+| `llm.freellmapi_fallback`              | false          | Auto fail over to a local [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) instance when the ChatGPT OAuth backend reports its usage limit is exhausted |
+| `llm.freellmapi_base_url`              | http://localhost:3001/v1 | FreeLLMAPI OpenAI-compatible base URL |
+| `llm.freellmapi_api_key`               | empty          | FreeLLMAPI unified bearer token (`freellmapi-...`, from its dashboard's Keys page) |
+| `llm.freellmapi_model`                 | auto           | Model requested from FreeLLMAPI (`auto` lets its router pick) |
 | `llm.base_url`                         | per provider   | API base URL, customizable                       |
 | `llm.model`                            | per provider   | Model name, customizable                        |
 | `llm.temperature`                      | 0.1            | Sampling temperature                             |

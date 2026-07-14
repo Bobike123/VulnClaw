@@ -68,6 +68,7 @@
   "status.mcp_services": "MCP Services: [bold]{count}[/]",
   "status.tools": "Available Tools: [bold]{count}[/]",
   "status.thinking": "Thinking: {state}",
+  "status.llm_auth": "LLM Auth: {state}",
   "phase.idle": "Ready",
   "phase.recon": "Recon",
   "phase.vuln_discovery": "Vulnerability Discovery",

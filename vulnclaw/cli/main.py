@@ -51,13 +51,14 @@ from vulnclaw.agent.input_analysis import extract_task_constraints
 from vulnclaw.agent.think_filter import format_think_tags, strip_think_tags
 from vulnclaw.cli.manual import available_topics, render_manual
 from vulnclaw.config.settings import (
+    ConfigKeyError,
     apply_provider_preset,
     list_providers,
     load_config,
     save_config,
     set_config_value,
 )
-from vulnclaw.config.token_provider import has_llm_credentials
+from vulnclaw.config.token_provider import has_llm_credentials, inspect_llm_auth
 from vulnclaw.i18n import _
 from vulnclaw.orchestrator import run_agent_task
 from vulnclaw.repl_runner import run_repl_call
@@ -501,6 +502,12 @@ def _run_repl() -> None:
                 _print_status(agent, mcp_manager, current_target, current_phase, config)
                 continue
 
+            elif _is_cli_login_query(user_input):
+                # "logged in?" etc. asks about VulnClaw's own LLM session, not
+                # the pentest target — answer from local state, no LLM call.
+                _print_llm_auth_status(config, agent)
+                continue
+
             elif cmd_lower.startswith("target "):
                 current_target, current_phase, restored_loaded = _prepare_repl_target(
                     agent,
@@ -913,11 +920,84 @@ def _print_status(agent, mcp_manager, target, phase, config) -> None:
             f"{_('status.phase', phase=phase_label)}\n"
             f"{_('status.mcp_services', count=mcp_manager.running_count())}\n"
             f"{_('status.tools', count=len(mcp_manager.list_available_tools()))}\n"
-            f"{_('status.thinking', state=think_state)}",
+            f"{_('status.thinking', state=think_state)}\n"
+            f"{_('status.llm_auth', state=_llm_auth_state_text(config, agent))}",
             title=_("status.title"),
             border_style="green",
         )
     )
+
+
+def _llm_auth_state_text(config, agent=None) -> str:
+    """Short colored summary of VulnClaw's own LLM login state (local, no network call)."""
+    if getattr(agent, "_chatgpt_usage_exhausted", False):
+        return "[yellow]ChatGPT usage limit reached[/] — using [bold]FreeLLMAPI fallback[/]"
+    auth = inspect_llm_auth(config.llm)
+    if not auth.ready:
+        return f"[red]not logged in[/] ({auth.mode})"
+    if auth.mode == "oauth" and auth.oauth_access_expired and auth.oauth_refreshable:
+        return "[green]logged in[/] (oauth, refreshing on next use)"
+    return f"[green]logged in[/] ({auth.mode})"
+
+
+# Narrow, exact-phrase matches only — this must never hijack legitimate
+# in-scope pentest questions like "is the admin logged in on target X".
+_CLI_LOGIN_QUERY_PHRASES = {
+    "logged in",
+    "am i logged in",
+    "are you logged in",
+    "is vulnclaw logged in",
+    "am i signed in",
+    "am i authenticated",
+    "auth status",
+    "login status",
+    "check login",
+    "check login status",
+    "check auth status",
+    "llm auth status",
+    "登录了吗",
+    "登录了没",
+    "已登录吗",
+    "是否已登录",
+    "认证状态",
+    "登录状态",
+    "有没有登录",
+}
+
+
+def _is_cli_login_query(user_input: str) -> bool:
+    """True when the user is asking whether *VulnClaw itself* is logged in to its LLM.
+
+    This is local CLI/OAuth state (see `vulnclaw login`) that the pentest agent
+    has no way to answer — it only knows about target-side authentication.
+    Matched as an exact phrase (not substring) so real pentest prompts stay
+    routed to the agent.
+    """
+    normalized = user_input.strip().strip("?？!！.。").strip().lower()
+    return normalized in _CLI_LOGIN_QUERY_PHRASES
+
+
+def _print_llm_auth_status(config, agent=None) -> None:
+    """Answer a 'logged in?' style question locally, without an LLM round-trip."""
+    if getattr(agent, "_chatgpt_usage_exhausted", False):
+        console.print(
+            "[yellow]⚠[/] ChatGPT usage limit reached this session — "
+            "requests are routed to the local [bold]FreeLLMAPI[/] fallback."
+        )
+        return
+    auth = inspect_llm_auth(config.llm)
+    if auth.ready:
+        console.print(f"[green]✓[/] Logged in ({auth.mode} mode).")
+        if auth.mode == "oauth" and auth.oauth_access_expired and auth.oauth_refreshable:
+            console.print("  [dim]Access token expired but will refresh automatically.[/]")
+    else:
+        console.print(f"[red]✗[/] Not logged in ([bold]{auth.mode}[/] mode).")
+        if auth.mode == "oauth":
+            console.print("  Run [bold]vulnclaw login[/] to sign in with ChatGPT.")
+        else:
+            console.print(
+                "  Run [bold]vulnclaw config set llm.api_key <your-key>[/] to set an API key."
+            )
 
 
 def _generate_report_for_target(
@@ -1875,7 +1955,14 @@ def config_set(
     value: str = typer.Argument(..., help="Config value"),
 ) -> None:
     """Set a config value."""
-    set_config_value(key, value)
+    try:
+        set_config_value(key, value)
+    except ConfigKeyError as exc:
+        err_console.print(f"[!] {exc}")
+        raise typer.Exit(1)
+    except (ValueError, TypeError) as exc:
+        err_console.print(f"[!] Invalid value for {key}: {exc}")
+        raise typer.Exit(1)
     console.print(
         f"[+] Set {key} = {'***' if 'key' in key.lower() or 'pass' in key.lower() else value}"
     )
@@ -2709,13 +2796,16 @@ def kb_status() -> None:
     else:
         line = "[red]✗ Knowledge base disabled (no data available)[/red]"
 
+    hints = ["Semantic search: run [bold]pip install vulnclaw\\[kb][/] to enable ChromaDB"]
+    if total == 0:
+        hints.insert(0, "Empty KB: run [bold]vulnclaw kb update[/] to populate it")
+
     console.print(
         Panel(
             f"{line}\n"
             f"Backend: [bold]{status.value}[/]\n"
             f"Detail: {detail or 'n/a'}\n"
-            f"Entries: [bold]{total}[/] ({category_summary or 'empty'})\n"
-            f"Semantic search: run [bold]pip install vulnclaw\\[kb][/] to enable ChromaDB",
+            f"Entries: [bold]{total}[/] ({category_summary or 'empty'})\n" + "\n".join(hints),
             title="KB Status",
             border_style="cyan",
         )

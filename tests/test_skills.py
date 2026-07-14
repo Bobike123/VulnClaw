@@ -480,7 +480,7 @@ class TestCryptoTools:
 
         result = execute("unknown_op", "test")
         assert result["success"] is False
-        assert "未知操作" in result["error"]
+        assert "Unknown operation" in result["error"]
 
     def test_unicode_decode(self):
         from vulnclaw.skills.crypto_tools import execute

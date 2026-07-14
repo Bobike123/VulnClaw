@@ -1106,6 +1106,110 @@ class TestCLI:
         assert updated.llm.model == "deepseek-reasoner"
 
 
+class TestReplLoginQuery:
+    """'logged in?' asks about VulnClaw's own LLM session, answered locally."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    @pytest.mark.parametrize(
+        "phrase",
+        [
+            "logged in?",
+            "logged in",
+            "Am I logged in?",
+            "AUTH STATUS",
+            "login status",
+            "登录了吗",
+        ],
+    )
+    def test_is_cli_login_query_matches_known_phrasings(self, phrase):
+        from vulnclaw.cli.main import _is_cli_login_query
+
+        assert _is_cli_login_query(phrase) is True
+
+    @pytest.mark.parametrize(
+        "phrase",
+        [
+            "is the admin logged in on the target?",
+            "check if the user is logged in after the CSRF bypass",
+            "scan example.com",
+            "",
+        ],
+    )
+    def test_is_cli_login_query_ignores_pentest_prompts(self, phrase):
+        from vulnclaw.cli.main import _is_cli_login_query
+
+        assert _is_cli_login_query(phrase) is False
+
+    def test_repl_logged_in_query_answers_locally_without_agent_call(self, runner, monkeypatch):
+        import vulnclaw.agent.core as agent_core
+        import vulnclaw.cli.main as cli_main
+        import vulnclaw.mcp.lifecycle as lifecycle_mod
+        from vulnclaw.cli.main import app
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        config.llm.api_key = "test-key"
+
+        monkeypatch.setattr(cli_main, "load_config", lambda: config)
+        monkeypatch.setattr(
+            lifecycle_mod.MCPLifecycleManager, "start_enabled_servers", lambda self: 0
+        )
+        monkeypatch.setattr(lifecycle_mod.MCPLifecycleManager, "stop_all", lambda self: None)
+
+        async def _boom_chat(self, *args, **kwargs):
+            raise AssertionError("'logged in?' must be answered locally, not routed to agent.chat")
+
+        monkeypatch.setattr(agent_core.AgentCore, "chat", _boom_chat)
+
+        result = runner.invoke(app, ["repl"], input="logged in?\nexit\n")
+
+        assert result.exit_code == 0
+        assert "Logged in" in result.output
+
+    def test_repl_logged_in_query_reports_not_logged_in_without_credentials(
+        self, runner, monkeypatch
+    ):
+        import vulnclaw.agent.core as agent_core
+        import vulnclaw.cli.main as cli_main
+        import vulnclaw.mcp.lifecycle as lifecycle_mod
+        from vulnclaw.cli.main import app
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        config.llm.api_key = "test-key"  # bypass the startup "no key" gate
+
+        monkeypatch.setattr(cli_main, "load_config", lambda: config)
+        monkeypatch.setattr(
+            lifecycle_mod.MCPLifecycleManager, "start_enabled_servers", lambda self: 0
+        )
+        monkeypatch.setattr(lifecycle_mod.MCPLifecycleManager, "stop_all", lambda self: None)
+        # Simulate an oauth-mode setup with no tokens stored yet.
+        config.llm.auth_mode = "oauth"
+        monkeypatch.setattr(cli_main, "inspect_llm_auth", lambda llm: _NotLoggedInStatus())
+
+        async def _boom_chat(self, *args, **kwargs):
+            raise AssertionError("'logged in?' must be answered locally, not routed to agent.chat")
+
+        monkeypatch.setattr(agent_core.AgentCore, "chat", _boom_chat)
+
+        result = runner.invoke(app, ["repl"], input="logged in?\nexit\n")
+
+        assert result.exit_code == 0
+        assert "Not logged in" in result.output
+        assert "vulnclaw login" in result.output
+
+
+class _NotLoggedInStatus:
+    mode = "oauth"
+    ready = False
+    oauth_tokens_stored = False
+    oauth_access_expired = False
+    oauth_refreshable = False
+
+
 class TestClassicReplSlashPalette:
     """Classic `vulnclaw` REPL: '/' skill palette and '/.' flag-skill wiring."""
 
@@ -1439,6 +1543,47 @@ class TestClassicReplSlashPalette:
         assert agent.config is config
         assert agent._client is None
         assert agent._key_index == 0
+
+
+class TestConfigSetErrorHandling:
+    """`vulnclaw config set` on a bad key must fail cleanly, not crash.
+
+    Regression: a typo'd field name (e.g. llm.freellm_api_key instead of
+    llm.freellmapi_api_key) used to bubble up as a raw, unhandled pydantic
+    ValueError with a full traceback dumped to the terminal.
+    """
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_unknown_field_exits_cleanly_with_suggestion(self, runner):
+        from vulnclaw.cli.main import app
+
+        result = runner.invoke(app, ["config", "set", "llm.freellm_api_key", "freellmapi-abcd"])
+
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert "Unknown config key" in result.output
+        assert "freellmapi_api_key" in result.output
+
+    def test_unknown_intermediate_segment_exits_cleanly(self, runner):
+        from vulnclaw.cli.main import app
+
+        result = runner.invoke(app, ["config", "set", "llm.nonexistent.deeper", "foo"])
+
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert "Unknown config key" in result.output
+
+    def test_bad_typed_value_exits_cleanly(self, runner):
+        from vulnclaw.cli.main import app
+
+        result = runner.invoke(app, ["config", "set", "llm.max_tokens", "notanumber"])
+
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert "Invalid value" in result.output
 
 
 class TestCLISubCommands:

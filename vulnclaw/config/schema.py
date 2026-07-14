@@ -152,6 +152,27 @@ class LLMConfig(BaseModel):
     reasoning_effort: str = Field(
         default="high", description="Reasoning effort level (OpenAI o-series only)"
     )
+    # ── FreeLLMAPI fallback ──────────────────────────────────────────────
+    # Local self-hosted router (github.com/tashfeenahmed/freellmapi) aggregating
+    # free tiers from multiple providers behind one OpenAI-compatible endpoint.
+    # When the ChatGPT OAuth backend reports its usage cap is exhausted, VulnClaw
+    # can transparently fail over to it for the rest of the session.
+    freellmapi_fallback: bool = Field(
+        default=False,
+        description=(
+            "Automatically fail over to a local FreeLLMAPI instance when the "
+            "ChatGPT OAuth backend reports its usage limit is exhausted."
+        ),
+    )
+    freellmapi_base_url: str = Field(
+        default="http://localhost:3001/v1", description="FreeLLMAPI OpenAI-compatible base URL"
+    )
+    freellmapi_api_key: str = Field(
+        default="", description="FreeLLMAPI unified bearer token (freellmapi-...)"
+    )
+    freellmapi_model: str = Field(
+        default="auto", description="Model requested from FreeLLMAPI ('auto' lets its router pick)"
+    )
 
     def key_pool(self) -> list[str]:
         """Return the ordered, de-blanked list of usable static API keys.

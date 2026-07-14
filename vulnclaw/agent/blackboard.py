@@ -170,7 +170,7 @@ class Blackboard(BaseModel):
     # ── 渲染 ────────────────────────────────────────────────────────
     def to_prompt_graph(self, *, include_concluded: bool = True) -> str:
         """把图渲染成给 LLM 阅读的紧凑文本（YAML 风格）。"""
-        lines: list[str] = [f"goal: {self.goal or '(未设定)'}", f"origin: {self.origin or '(未设定)'}"]
+        lines: list[str] = [f"goal: {self.goal or '(not set)'}", f"origin: {self.origin or '(not set)'}"]
 
         lines.append("facts:")
         if self.facts:
@@ -178,7 +178,7 @@ class Blackboard(BaseModel):
                 src = f"  ({fact.source})" if fact.source else ""
                 lines.append(f"  - {fact.id}: {fact.description}{src}")
         else:
-            lines.append("  (暂无)")
+            lines.append("  (none)")
 
         lines.append("intents:")
         shown = self.intents if include_concluded else self.active_intents()
@@ -189,11 +189,11 @@ class Blackboard(BaseModel):
                 note = f"  // {intent.note}" if intent.note else ""
                 lines.append(f"  - {intent.id} [{intent.status.value}]{frm}{res}: {intent.description}{note}")
         else:
-            lines.append("  (暂无)")
+            lines.append("  (none)")
 
         tc_summary = self.tool_call_summary(30)
         if tc_summary:
-            lines.append("executed_tools (禁止重复调用已执行的工具+参数):")
+            lines.append("executed_tools (do not repeat already-executed tool + args):")
             lines.append(tc_summary)
 
         return "\n".join(lines)

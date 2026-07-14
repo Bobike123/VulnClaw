@@ -258,7 +258,7 @@ class TestWebServices:
         assert preview.constraints["allowed_ports"] == [443]
         assert preview.constraint_violations
         assert preview.constraint_violation_events
-        assert any("回避" in action or "约束" in action for action in preview.next_actions)
+        assert any("Avoid" in action or "constraint" in action for action in preview.next_actions)
 
         snapshots = store_mod.list_target_snapshots("https://example.com")
         diff = target_service.get_diff(

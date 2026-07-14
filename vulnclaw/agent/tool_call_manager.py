@@ -58,11 +58,11 @@ async def handle_tool_calls_with_results(
     skipped_info: list[str] = []
 
     if total_count > dedup_count:
-        skipped_info.append(f"[去重] {total_count - dedup_count} 个重复调用已合并")
+        skipped_info.append(f"[dedup] {total_count - dedup_count} duplicate call(s) merged")
     if skipped_calls:
         for sc in skipped_calls:
             skipped_info.append(
-                f"[跳过] {sc['func_name']}({str(sc['func_args'])[:100]}) — 本轮已达上限，下轮继续"
+                f"[skip] {sc['func_name']}({str(sc['func_args'])[:100]}) — round limit reached, continues next round"
             )
 
     parallel, max_concurrent = _resolve_parallel_settings(agent)
@@ -151,7 +151,7 @@ async def _execute_single(agent: AgentContext, item: dict[str, Any]) -> dict[str
             "structured_content": structured_content,
         }
     except Exception as e:
-        print(f"[!] 工具执行失败 {func_name}: {e}", file=sys.stderr)
+        print(f"[!] Tool execution failed {func_name}: {e}", file=sys.stderr)
         return None
 
 

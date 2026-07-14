@@ -69,6 +69,60 @@ def test_logout_removes_store(_config_dir):
     assert tp.load_oauth_tokens() == {}
 
 
+# ── inspect_llm_auth (read-only status, no refresh/network) ──────────
+
+
+def test_inspect_llm_auth_static_mode_with_key(_config_dir):
+    status = tp.inspect_llm_auth(LLMConfig(api_key="sk-static"))
+    assert status.mode == "static"
+    assert status.ready is True
+
+
+def test_inspect_llm_auth_static_mode_without_key(_config_dir):
+    status = tp.inspect_llm_auth(LLMConfig())
+    assert status.mode == "static"
+    assert status.ready is False
+
+
+def test_inspect_llm_auth_oauth_mode_with_valid_token(_config_dir):
+    tp.save_oauth_tokens({"access_token": "live", "expires_at": time.time() + 3600})
+    status = tp.inspect_llm_auth(LLMConfig(auth_mode="oauth"))
+    assert status.mode == "oauth"
+    assert status.ready is True
+    assert status.oauth_access_expired is False
+
+
+def test_inspect_llm_auth_oauth_mode_expired_but_refreshable(_config_dir):
+    tp.save_oauth_tokens(
+        {"access_token": "stale", "refresh_token": "r", "expires_at": time.time() - 10}
+    )
+    status = tp.inspect_llm_auth(LLMConfig(auth_mode="oauth"))
+    assert status.mode == "oauth"
+    assert status.ready is True  # refreshable, so still usable
+    assert status.oauth_access_expired is True
+    assert status.oauth_refreshable is True
+
+
+def test_inspect_llm_auth_oauth_mode_without_tokens(_config_dir):
+    status = tp.inspect_llm_auth(LLMConfig(auth_mode="oauth"))
+    assert status.mode == "oauth"
+    assert status.ready is False
+    assert status.oauth_tokens_stored is False
+
+
+def test_inspect_llm_auth_never_refreshes_or_leaks_token(_config_dir, monkeypatch):
+    """inspect_llm_auth must be side-effect-free: no refresh call, no token in the result."""
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("inspect_llm_auth must not trigger a token refresh")
+
+    monkeypatch.setattr(tp, "_resolve_oauth_token", _boom)
+    tp.save_oauth_tokens({"access_token": "stale", "expires_at": time.time() - 10})
+    status = tp.inspect_llm_auth(LLMConfig(auth_mode="oauth"))
+    assert not hasattr(status, "access_token")
+    assert "stale" not in repr(status)
+
+
 def test_decode_jwt_claims_and_account_id():
     header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
     claims = {"https://api.openai.com/auth": {"chatgpt_account_id": "acct-123"}}

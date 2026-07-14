@@ -205,14 +205,14 @@ class KnowledgeRetriever:
                 if backend.has_data():
                     self._backend = backend
                     self._status = RetrieverStatus.CHROMADB_ACTIVE
-                    self._status_detail = "ChromaDB 语义检索已启用"
+                    self._status_detail = "ChromaDB semantic retrieval enabled"
                     return
                 # ChromaDB present but no data → nothing to disable yet,
                 # keep probing the keyword backend below.
                 logger.info("ChromaDB available but KB corpus is empty")
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("ChromaDB backend init failed, falling back: %s", exc)
-                self._status_detail = f"ChromaDB 初始化失败: {exc}"
+                self._status_detail = f"ChromaDB initialization failed: {exc}"
 
         try:
             keyword = KeywordRetriever(self.store)
@@ -220,7 +220,7 @@ class KnowledgeRetriever:
             logger.warning("Keyword retriever init failed: %s", exc)
             self._backend = None
             self._status = RetrieverStatus.DISABLED
-            self._status_detail = f"关键词检索初始化失败: {exc}"
+            self._status_detail = f"Keyword retrieval initialization failed: {exc}"
             return
 
         self._backend = keyword
@@ -228,14 +228,14 @@ class KnowledgeRetriever:
             self._status = RetrieverStatus.KEYWORD_FALLBACK
             if not CHROMADB_AVAILABLE:
                 self._status_detail = (
-                    f"chromadb 未安装 ({CHROMADB_IMPORT_ERROR or 'not installed'})，"
-                    "已降级为关键词检索"
+                    f"chromadb not installed ({CHROMADB_IMPORT_ERROR or 'not installed'}); "
+                    "downgraded to keyword retrieval"
                 )
             elif not self._status_detail:
-                self._status_detail = "已降级为关键词检索"
+                self._status_detail = "downgraded to keyword retrieval"
         else:
             self._status = RetrieverStatus.DISABLED
-            self._status_detail = "知识库为空，无可用数据"
+            self._status_detail = "Knowledge base is empty; no data available"
 
     # ── Status reporting ─────────────────────────────────────────────
 

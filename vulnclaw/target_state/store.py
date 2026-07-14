@@ -383,30 +383,30 @@ def _build_resume_summary(raw: dict[str, Any], resume_meta: dict[str, Any]) -> s
     verified_count = resume_meta.get("verified_findings", 0)
 
     parts = [
-        "## 历史成果摘要",
-        f"- 最近命令: {resume_meta.get('last_command', 'unknown')}",
-        f"- 已执行步骤: {resume_meta.get('executed_steps', len(executed_steps))}",
-        f"- 已验证漏洞: {verified_count}",
-        f"- 待验证漏洞: {pending_count}",
+        "## Historical Results Summary",
+        f"- Last command: {resume_meta.get('last_command', 'unknown')}",
+        f"- Executed steps: {resume_meta.get('executed_steps', len(executed_steps))}",
+        f"- Verified findings: {verified_count}",
+        f"- Pending findings: {pending_count}",
     ]
 
     if resume_meta.get("resume_strategy"):
-        parts.append(f"- 恢复优先策略: {resume_meta['resume_strategy']}")
+        parts.append(f"- Resume priority strategy: {resume_meta['resume_strategy']}")
     if resume_meta.get("resume_strategy_reason"):
-        parts.append(f"- 策略原因: {resume_meta['resume_strategy_reason']}")
+        parts.append(f"- Strategy reason: {resume_meta['resume_strategy_reason']}")
     if resume_meta.get("low_value_rounds"):
-        parts.append(f"- 连续低价值轮次: {resume_meta['low_value_rounds']}")
+        parts.append(f"- Consecutive low-value rounds: {resume_meta['low_value_rounds']}")
     if resume_meta.get("blocked_targets"):
-        parts.append(f"- 已阻塞目标: {', '.join(resume_meta['blocked_targets'][:5])}")
+        parts.append(f"- Blocked targets: {', '.join(resume_meta['blocked_targets'][:5])}")
     if runtime_meta.get("current_attack_path"):
-        parts.append(f"- 最近攻击路径: {runtime_meta['current_attack_path']}")
+        parts.append(f"- Recent attack path: {runtime_meta['current_attack_path']}")
     if recon_data:
-        parts.append(f"- 已有侦察数据键: {', '.join(sorted(recon_data.keys())[:10])}")
+        parts.append(f"- Existing recon data keys: {', '.join(sorted(recon_data.keys())[:10])}")
     if resume_meta.get("priority_targets"):
-        parts.append(f"- 恢复优先目标: {', '.join(resume_meta['priority_targets'][:5])}")
+        parts.append(f"- Resume priority targets: {', '.join(resume_meta['priority_targets'][:5])}")
 
     if findings:
-        parts.append("- 最近漏洞线索")
+        parts.append("- Recent finding leads")
         prioritized = sorted(
             findings,
             key=lambda item: (
@@ -418,29 +418,29 @@ def _build_resume_summary(raw: dict[str, Any], resume_meta: dict[str, Any]) -> s
             vuln_type = finding.get("vuln_type", "")
             status = finding.get("verification_status", "pending")
             confidence = finding_meta.get(_finding_key(finding), {}).get("confidence", 0.5)
-            parts.append(f"  - {title} [{vuln_type or '未分类'}] ({status}, conf={confidence})")
+            parts.append(f"  - {title} [{vuln_type or 'uncategorized'}] ({status}, conf={confidence})")
 
     high_value_assets = _top_recon_assets_for_summary(recon_meta)
     if high_value_assets:
-        parts.append("- 高置信度侦察资产")
+        parts.append("- High-confidence recon assets")
         for item in high_value_assets[:5]:
             parts.append(f"  - {item}")
 
     failed_targets = resume_meta.get("failed_targets", [])
     if failed_targets:
-        parts.append("- 历史失败目标")
+        parts.append("- Historical failed targets")
         for item in failed_targets[:5]:
             parts.append(f"  - {item}")
 
     failed_steps = resume_meta.get("recent_failed_steps", [])
     if failed_steps:
-        parts.append("- 最近失败路径/步骤")
+        parts.append("- Recent failed paths/steps")
         for item in failed_steps[:5]:
             parts.append(f"  - {item}")
 
     next_actions = resume_meta.get("next_actions", [])
     if next_actions:
-        parts.append("- 恢复建议动作")
+        parts.append("- Recommended resume actions")
         for item in next_actions[:5]:
             parts.append(f"  - {item}")
 

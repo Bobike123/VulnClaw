@@ -1,5 +1,6 @@
 """VulnClaw Config Module Tests — schema.py + settings.py"""
 
+import pytest
 
 # ── schema.py ────────────────────────────────────────────────────────
 
@@ -296,6 +297,36 @@ class TestSettingsLoad:
 
         config = load_config()
         assert config.mcp.servers["chrome-devtools"].enabled is True
+
+    def test_set_config_unknown_leaf_field_raises_config_key_error(self):
+        """Regression: a typo'd field name used to crash with a raw pydantic
+        traceback instead of a clean, catchable error."""
+        from vulnclaw.config.settings import ConfigKeyError, set_config_value
+
+        with pytest.raises(ConfigKeyError, match="freellm_api_key"):
+            set_config_value("llm.freellm_api_key", "freellmapi-abcd")
+
+    def test_set_config_unknown_leaf_field_suggests_close_match(self):
+        from vulnclaw.config.settings import ConfigKeyError, set_config_value
+
+        with pytest.raises(ConfigKeyError, match="freellmapi_api_key"):
+            set_config_value("llm.freellm_api_key", "freellmapi-abcd")
+
+    def test_set_config_unknown_intermediate_segment_raises_config_key_error(self):
+        from vulnclaw.config.settings import ConfigKeyError, set_config_value
+
+        with pytest.raises(ConfigKeyError, match="llm.nonexistent"):
+            set_config_value("llm.nonexistent.deeper", "foo")
+
+    def test_set_config_valid_deep_path_still_resolves_first_segment(self):
+        """Regression guard for the traversal fix: the *first* dotted segment
+        must still be walked (not just intermediate ones)."""
+        from vulnclaw.config.settings import load_config, set_config_value
+
+        set_config_value("llm.freellmapi_api_key", "freellmapi-real-key")
+
+        config = load_config()
+        assert config.llm.freellmapi_api_key == "freellmapi-real-key"
 
     def test_apply_provider_preset(self):
         from vulnclaw.config.schema import VulnClawConfig

@@ -237,7 +237,7 @@ class TestTargetState:
         assert restored is not None
         assert restored.target == "https://example.com"
         assert restored.phase == PentestPhase.RECON
-        assert "历史成果摘要" in restored.resume_summary
+        assert "Historical Results Summary" in restored.resume_summary
 
     def test_target_state_merges_findings(self, monkeypatch, tmp_path):
         import vulnclaw.target_state.store as store_mod
@@ -378,7 +378,7 @@ class TestTargetState:
         store_mod.save_target_state("https://example.com", state, command="scan")
         restored = store_mod.hydrate_session_from_target_state("https://example.com")
         assert restored is not None
-        assert "高置信度侦察资产" in restored.resume_summary
+        assert "High-confidence recon assets" in restored.resume_summary
         assert (
             "paths:/admin" in restored.resume_summary
             or "subdomains:vpn.example.com" in restored.resume_summary
@@ -450,9 +450,9 @@ class TestTargetState:
         store_mod.save_target_state("https://example.com", state, command="recon", runtime=runtime)
         restored = store_mod.hydrate_session_from_target_state("https://example.com")
         assert restored is not None
-        assert "已阻塞目标" in restored.resume_summary
-        assert "连续低价值轮次" in restored.resume_summary
-        assert "最近失败路径/步骤" in restored.resume_summary
+        assert "Blocked targets" in restored.resume_summary
+        assert "Consecutive low-value rounds" in restored.resume_summary
+        assert "Recent failed paths/steps" in restored.resume_summary
 
     def test_target_state_snapshots_and_rollback(self, monkeypatch, tmp_path):
         import vulnclaw.target_state.store as store_mod
@@ -844,7 +844,7 @@ class TestAgentCore:
         messages = cm.get_messages()
         assert len(messages) <= 5
         assert messages[0]["role"] == "system"
-        assert "之前的会话摘要" in messages[0]["content"]
+        assert "[Previous session summary]" in messages[0]["content"]
 
     def test_completion_signal_detection(self):
         agent = self._make_agent()
@@ -1136,6 +1136,72 @@ class TestAgentCore:
         assert agent.runtime.task_constraints.allowed_ports == [443]
         assert agent.context.state.task_constraints.allowed_ports == [443]
 
+    @pytest.mark.asyncio
+    async def test_chat_streams_error_to_sink_instead_of_swallowing_it(self, monkeypatch):
+        """A call_llm failure (e.g. 429 usage-limit) must reach the sink, not vanish.
+
+        Regression test: chat() used to only stuff the error into result.output,
+        which the REPL's streaming callers never print (they rely entirely on
+        the sink) — so the failure was silently dropped and the REPL looked
+        hung with no feedback.
+        """
+        import vulnclaw.agent.core as core_mod
+
+        async def _boom(*args, **kwargs):
+            raise RuntimeError("Error code: 429 - usage_limit_reached")
+
+        monkeypatch.setattr(core_mod, "call_llm", _boom)
+
+        agent = self._make_agent()
+
+        events: list[tuple[str, str]] = []
+
+        class RecordingSink:
+            def on_status(self, message):
+                events.append(("status", message))
+
+            def on_thinking_token(self, token):
+                events.append(("thinking", token))
+
+            def on_content_token(self, token):
+                events.append(("content", token))
+
+            def on_tool_call(self, name, args):
+                events.append(("tool_call", name))
+
+            def on_tool_result(self, result_summary):
+                events.append(("tool_result", result_summary))
+
+            def on_stream_end(self):
+                events.append(("stream_end", ""))
+
+        result = await agent.chat("can you help me create a .exe file?", stream_sink=RecordingSink())
+
+        assert "[!] Agent error:" in result.output
+        assert "429" in result.output
+
+        content_events = [payload for kind, payload in events if kind == "content"]
+        assert any("429" in payload for payload in content_events), (
+            "error text must be pushed through stream_sink.on_content_token "
+            "so REPL/TUI callers that only render the sink still show it"
+        )
+        assert events[-1][0] == "stream_end", "must close out the stream so status text isn't left dangling"
+
+    @pytest.mark.asyncio
+    async def test_chat_error_without_stream_sink_does_not_raise(self, monkeypatch):
+        """No stream_sink (e.g. non-interactive callers) must not crash the error path."""
+        import vulnclaw.agent.core as core_mod
+
+        async def _boom(*args, **kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(core_mod, "call_llm", _boom)
+
+        agent = self._make_agent()
+        result = await agent.chat("hello")
+
+        assert "[!] Agent error: boom" in result.output
+
 
 class TestAgentCoreLoop:
     """State-machine-level tests for auto_pentest / persistent_pentest loops."""
@@ -1385,7 +1451,7 @@ class TestAgentCoreLoop:
 
         monkeypatch.setattr(llm_client.asyncio, "sleep", no_sleep)
         result = await llm_client.call_llm_auto(dummy, "sys", "round")
-        assert "LLM恢复" in result
+        assert "LLM recovery" in result
         assert "恢复成功" in result
         assert loop.calls == 3
 
@@ -1544,7 +1610,7 @@ class TestAgentCoreLoop:
         )
 
         result = await llm_client.call_llm_auto(dummy, "sys", "round")
-        assert "已降级为纯文本结果摘要" in result
+        assert "downgraded to a plain-text result summary" in result
         assert "Status: 200" in result
 
     @pytest.mark.asyncio

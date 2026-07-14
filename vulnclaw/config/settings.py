@@ -121,6 +121,17 @@ def save_config(config: VulnClawConfig) -> None:
         pass
 
 
+class ConfigKeyError(ValueError):
+    """Raised for an unknown or malformed dot-notation config key."""
+
+
+def _suggest_field(field_name: str, candidates: list[str]) -> str:
+    import difflib
+
+    matches = difflib.get_close_matches(field_name, candidates, n=1)
+    return f" Did you mean '{matches[0]}'?" if matches else ""
+
+
 def set_config_value(key: str, value: str) -> None:
     """Set a nested config value using dot notation.
 
@@ -128,12 +139,20 @@ def set_config_value(key: str, value: str) -> None:
 
     Supports traversal through both Pydantic model attributes *and* plain dict
     nodes (e.g. ``mcp.servers.chrome-devtools.enabled``).
+
+    Raises:
+        ConfigKeyError: the key path doesn't resolve to a real config field —
+            callers should catch this and print a clean message rather than
+            letting a raw pydantic/AttributeError traceback surface.
     """
     config = load_config()
     parts = key.split(".")
     obj: Any = config
-    for part in parts[:-1]:
-        obj = obj[part] if isinstance(obj, dict) else getattr(obj, part)
+    for i, part in enumerate(parts[:-1]):
+        try:
+            obj = obj[part] if isinstance(obj, dict) else getattr(obj, part)
+        except (AttributeError, KeyError, TypeError):
+            raise ConfigKeyError(f"Unknown config key: '{'.'.join(parts[: i + 1])}'") from None
     field_name = parts[-1]
 
     if isinstance(obj, dict):
@@ -149,21 +168,23 @@ def set_config_value(key: str, value: str) -> None:
     else:
         # Pydantic model node — use field annotation for type coercion
         model_fields = getattr(type(obj), "model_fields", {})
-        if field_name in model_fields:
-            field_info = model_fields[field_name]
-            annotation = field_info.annotation
-            if annotation is int:
-                value = int(value)
-            elif annotation is float:
-                value = float(value)
-            elif annotation is bool:
-                value = value.lower() in ("true", "1", "yes")
-            elif getattr(annotation, "__origin__", None) is list:
-                # Accept a list as-is, or split a comma/newline-separated string.
-                if isinstance(value, str):
-                    value = [p.strip() for p in value.replace("\n", ",").split(",") if p.strip()]
-                else:
-                    value = list(value)
+        if field_name not in model_fields:
+            hint = _suggest_field(field_name, list(model_fields))
+            raise ConfigKeyError(f"Unknown config key: '{key}'.{hint}")
+        field_info = model_fields[field_name]
+        annotation = field_info.annotation
+        if annotation is int:
+            value = int(value)
+        elif annotation is float:
+            value = float(value)
+        elif annotation is bool:
+            value = value.lower() in ("true", "1", "yes")
+        elif getattr(annotation, "__origin__", None) is list:
+            # Accept a list as-is, or split a comma/newline-separated string.
+            if isinstance(value, str):
+                value = [p.strip() for p in value.replace("\n", ",").split(",") if p.strip()]
+            else:
+                value = list(value)
         setattr(obj, field_name, value)
     save_config(config)
 
@@ -218,7 +239,8 @@ def _overlay_env(config: VulnClawConfig) -> VulnClawConfig:
     """Overlay environment variables onto config.
 
     Supported env vars (prefix VULNCLAW_):
-        LLM:        API_KEY, BASE_URL, MODEL, PROVIDER, MAX_TOKENS, MAX_CONTEXT_TOKENS, TEMPERATURE
+        LLM:        API_KEY, BASE_URL, MODEL, PROVIDER, MAX_TOKENS, MAX_CONTEXT_TOKENS, TEMPERATURE,
+                    FREELLMAPI_FALLBACK, FREELLMAPI_BASE_URL, FREELLMAPI_API_KEY, FREELLMAPI_MODEL
         Session:    OUTPUT_DIR, AUTO_SAVE, REPORT_FORMAT, MAX_ROUNDS, SHOW_THINKING
         Safety:     PYTHON_EXECUTE_ENABLED, PYTHON_EXECUTE_RESTRICTED, PYTHON_EXECUTE_MODE,
                     PYTHON_EXECUTE_MAX_LINES, PYTHON_EXECUTE_SHOW_WARNING,
@@ -252,6 +274,16 @@ def _overlay_env(config: VulnClawConfig) -> VulnClawConfig:
         config.llm.auth_mode = v
     if v := os.environ.get("VULNCLAW_LLM_CHATGPT_AUTO_PROXY"):
         config.llm.chatgpt_auto_proxy = v.lower() in ("1", "true", "yes", "on")
+
+    # ── FreeLLMAPI fallback ──────────────────────────────────────────────
+    if v := os.environ.get("VULNCLAW_LLM_FREELLMAPI_FALLBACK"):
+        config.llm.freellmapi_fallback = v.lower() in ("1", "true", "yes", "on")
+    if v := os.environ.get("VULNCLAW_LLM_FREELLMAPI_BASE_URL"):
+        config.llm.freellmapi_base_url = v
+    if v := os.environ.get("VULNCLAW_LLM_FREELLMAPI_API_KEY"):
+        config.llm.freellmapi_api_key = v
+    if v := os.environ.get("VULNCLAW_LLM_FREELLMAPI_MODEL"):
+        config.llm.freellmapi_model = v
 
     # ── Session ──────────────────────────────────────────────────────
     if v := os.environ.get("VULNCLAW_SESSION_OUTPUT_DIR"):

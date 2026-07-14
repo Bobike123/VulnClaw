@@ -31,6 +31,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from contextlib import suppress
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,17 @@ class TokenResolutionError(RuntimeError):
 
 class OAuthError(TokenResolutionError):
     """Raised when the OAuth sign-in / refresh flow fails."""
+
+
+@dataclass(frozen=True)
+class LLMAuthStatus:
+    """Non-secret snapshot of the configured LLM authentication state."""
+
+    mode: str
+    ready: bool
+    oauth_tokens_stored: bool = False
+    oauth_access_expired: bool = False
+    oauth_refreshable: bool = False
 
 
 def _get(llm: Any, name: str, default: Any = "") -> Any:
@@ -404,3 +416,49 @@ def has_llm_credentials(llm: Any) -> bool:
         bundle = load_oauth_tokens()
         return bool(bundle.get("access_token") or bundle.get("refresh_token"))
     return False
+
+
+def inspect_llm_auth(llm: Any, *, now: float | None = None) -> LLMAuthStatus:
+    """Return a safe, read-only authentication status snapshot.
+
+    Unlike :func:`resolve_llm_token`, this helper never refreshes a token or
+    returns credential material. It is suitable for CLI status displays.
+    """
+    mode = str(_get(llm, "auth_mode") or "static").strip().lower()
+    bundle = load_oauth_tokens()
+    access_present = bool(bundle.get("access_token"))
+    refreshable = bool(bundle.get("refresh_token"))
+    oauth_tokens_stored = access_present or refreshable
+
+    try:
+        expires_at = float(bundle.get("expires_at") or 0.0)
+    except (TypeError, ValueError):
+        expires_at = 0.0
+    current_time = time.time() if now is None else now
+    access_expired = bool(access_present and expires_at and current_time >= expires_at)
+
+    if mode in ("", "static"):
+        return LLMAuthStatus(
+            mode="static",
+            ready=has_llm_credentials(llm),
+            oauth_tokens_stored=oauth_tokens_stored,
+            oauth_access_expired=access_expired,
+            oauth_refreshable=refreshable,
+        )
+
+    if mode == "oauth":
+        return LLMAuthStatus(
+            mode="oauth",
+            ready=refreshable or (access_present and not access_expired),
+            oauth_tokens_stored=oauth_tokens_stored,
+            oauth_access_expired=access_expired,
+            oauth_refreshable=refreshable,
+        )
+
+    return LLMAuthStatus(
+        mode=mode,
+        ready=False,
+        oauth_tokens_stored=oauth_tokens_stored,
+        oauth_access_expired=access_expired,
+        oauth_refreshable=refreshable,
+    )

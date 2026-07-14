@@ -70,6 +70,7 @@
   "status.mcp_services": "MCP 服务: [bold]{count}[/]",
   "status.tools": "可用工具: [bold]{count}[/]",
   "status.thinking": "推理: {state}",
+  "status.llm_auth": "LLM 登录状态: {state}",
   "phase.idle": "就绪",
   "phase.recon": "信息收集",
   "phase.vuln_discovery": "漏洞发现",

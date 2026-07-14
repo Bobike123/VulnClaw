@@ -65,6 +65,11 @@ class AgentCore:
         # Failover key pool: prefer llm.api_keys, else the single llm.api_key.
         self._key_pool = config.llm.key_pool()
         self._key_index = 0
+        # FreeLLMAPI fallback: flips True once the primary (ChatGPT OAuth)
+        # backend reports its usage cap is exhausted; sticky for the rest of
+        # this AgentCore's life so we don't keep re-hitting a dead backend.
+        self._chatgpt_usage_exhausted = False
+        self._freellmapi_client = None
         self.runtime = RuntimeState()
         self._reset_runtime_state()
         # Optional KB retriever — lazily initialized on first use
@@ -93,14 +98,17 @@ class AgentCore:
         if RetrieverStatus is None:
             return
         if status == RetrieverStatus.CHROMADB_ACTIVE:
-            console.print("[green]✓ 知识库已启用 (ChromaDB)[/green]")
+            console.print("[green]✓ Knowledge base enabled (ChromaDB)[/green]")
         elif status == RetrieverStatus.KEYWORD_FALLBACK:
             console.print(
-                "[yellow]⚠ 知识库已降级为关键词模式 "
-                "(chromadb 未安装，运行 pip install vulnclaw[kb] 启用语义搜索)[/yellow]"
+                "[yellow]⚠ Knowledge base downgraded to keyword mode "
+                "(chromadb not installed; run pip install vulnclaw[kb] to enable semantic search)[/yellow]"
             )
         else:
-            console.print("[red]✗ 知识库已禁用 (无可用数据)[/red]")
+            console.print(
+                "[red]✗ Knowledge base disabled (no data available)[/red] "
+                "[dim](run `vulnclaw kb update` to populate it)[/dim]"
+            )
 
     def _maybe_auto_save_session(self) -> None:
         """Persist session state when auto-save is enabled."""
@@ -198,6 +206,12 @@ class AgentCore:
             "人物追踪",
             "人物画像",
             "osint",
+            "social engineering",
+            "personnel info",
+            "author tracking",
+            "persona",
+            "intelligence",
+            "investigation",
             "情报",
             "作者",
             "调查",
@@ -280,6 +294,12 @@ class AgentCore:
 
         llm = self.config.llm
 
+        # ── FreeLLMAPI fallback: the ChatGPT backend already told us this ──
+        # session it's out of usage. Stay on the fallback rather than paying
+        # for another round-trip to a backend we know is exhausted.
+        if self._chatgpt_usage_exhausted and getattr(llm, "freellmapi_fallback", False):
+            return self._get_freellmapi_client()
+
         # ── ChatGPT subscription: auto-start the built-in bridge proxy ──
         # The subscription token only works against the ChatGPT backend, so we
         # transparently route VulnClaw's chat.completions through an in-process
@@ -298,7 +318,7 @@ class AgentCore:
                         api_key="local-proxy", base_url=proxy_base
                     )
                 except ImportError:
-                    raise RuntimeError("请安装 openai 包: pip install openai")
+                    raise RuntimeError("Please install the openai package: pip install openai")
             return self._client
 
         auth_mode = str(getattr(llm, "auth_mode", "") or "static").strip().lower()
@@ -315,11 +335,30 @@ class AgentCore:
                     base_url=llm.base_url,
                 )
             except ImportError:
-                raise RuntimeError("请安装 openai 包: pip install openai")
+                raise RuntimeError("Please install the openai package: pip install openai")
         elif token:
             # Refresh the bearer token in place for rotating / short-lived creds.
             self._client.api_key = token
         return self._client
+
+    def _get_freellmapi_client(self):
+        """Lazy-initialize the OpenAI client pointed at the local FreeLLMAPI router.
+
+        FreeLLMAPI (github.com/tashfeenahmed/freellmapi) is a self-hosted,
+        OpenAI-compatible aggregator of free-tier LLM providers. It authenticates
+        with its own unified ``freellmapi-...`` bearer token, unrelated to the
+        ChatGPT OAuth credentials.
+        """
+        llm = self.config.llm
+        if self._freellmapi_client is None:
+            try:
+                self._freellmapi_client = make_openai_client(
+                    api_key=getattr(llm, "freellmapi_api_key", "") or "placeholder",
+                    base_url=getattr(llm, "freellmapi_base_url", "") or "http://localhost:3001/v1",
+                )
+            except ImportError:
+                raise RuntimeError("Please install the openai package: pip install openai")
+        return self._freellmapi_client
 
     @staticmethod
     def _extract_response(message: Any) -> str:
@@ -356,6 +395,12 @@ class AgentCore:
             "人物追踪",
             "人物画像",
             "osint",
+            "social engineering",
+            "personnel info",
+            "author tracking",
+            "persona",
+            "intelligence",
+            "investigation",
             "情报",
             "调查",
             "作者",
@@ -464,7 +509,13 @@ class AgentCore:
             self._maybe_auto_save_session()
 
         except Exception as e:
-            result.output = f"[!] Agent 错误: {e}"
+            result.output = f"[!] Agent error: {e}"
+            # This bypasses call_llm's normal streaming path entirely, so unlike
+            # a successful response it was never pushed through stream_sink —
+            # without this it's silently swallowed and the REPL just looks hung.
+            if stream_sink is not None:
+                stream_sink.on_content_token(result.output)
+                stream_sink.on_stream_end()
 
         return result
 

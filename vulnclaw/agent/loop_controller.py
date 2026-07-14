@@ -41,7 +41,7 @@ def _sync_reasoning_path(agent: AgentContext, path_name: str, *, success: bool) 
         existing = reasoning.add_path(path_name, steps=[], priority=1)
     if success:
         existing.status = PathStatus.SUCCESS
-        existing.result = "取得进展"
+        existing.result = "made progress"
     elif existing.status != PathStatus.SUCCESS:
         existing.status = PathStatus.FAILED
     reasoning.auto_prioritize()
@@ -62,7 +62,7 @@ def _sync_reasoning_constraint(agent: AgentContext, path_name: str, category: Fa
     if category_value is None:
         return
     reasoning.add_constraint(
-        description=f"{path_name or '当前路径'} 被 {category_value.value} 阻断",
+        description=f"{path_name or 'current path'} blocked by {category_value.value}",
         category=category_value,
         severity=ConstraintSeverity.HIGH,
         source="auto_pentest",
@@ -122,7 +122,7 @@ async def auto_pentest(
         try:
             response_text = await call_llm_auto(agent, system_prompt, round_context, stream_sink=stream_sink)
             result.output = response_text
-            agent.context.add_assistant_message(f"[Round {round_num} 分析] {response_text}")
+            agent.context.add_assistant_message(f"[Round {round_num} analysis] {response_text}")
             agent._finding_parser.parse(response_text)
 
             if agent.runtime.is_recon_phase:
@@ -138,7 +138,7 @@ async def auto_pentest(
                     agent.context.state.add_constraint_violation_event(
                         source="phase",
                         action="exploit"
-                        if hasattr(new_phase, "value") and new_phase.value == "漏洞利用"
+                        if hasattr(new_phase, "value") and new_phase.value == "Exploitation"
                         else "",
                         code="phase_transition_blocked",
                         severity="high",
@@ -265,7 +265,7 @@ async def auto_pentest(
             agent.context.state.save()
 
         except Exception as e:
-            result.output = f"[!] Round {round_num} 错误: {e}"
+            result.output = f"[!] Round {round_num} error: {e}"
             agent.runtime.consecutive_errors += 1
             if agent.runtime.consecutive_errors >= 3:
                 result.should_continue = False
@@ -366,8 +366,8 @@ async def persistent_pentest(
                     constraints_block = f"\n\n{rendered}"
             results = await agent.auto_pentest(
                 user_input=(
-                    f"[Persistent Cycle {cycle_num}] 继续对目标 {agent.context.state.target or '未知'} 进行渗透测试。"
-                    f"这是第 {cycle_num} 个周期，保持之前的所有发现继续深入。"
+                    f"[Persistent Cycle {cycle_num}] Continue penetration testing against target {agent.context.state.target or 'unknown'}."
+                    f"This is cycle {cycle_num}; retain all previous findings and keep going deeper."
                     f"{constraints_block}"
                     if cycle_num > 1
                     else user_input
@@ -410,7 +410,7 @@ async def persistent_pentest(
                     prev_verified_ids=prev_verified_ids,
                 )
             except Exception as e:
-                report_path = f"报告生成失败: {e}"
+                report_path = f"Report generation failed: {e}"
 
         cycle_result = PersistentCycleResult(
             cycle_num=cycle_num,

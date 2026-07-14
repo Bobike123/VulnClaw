@@ -291,3 +291,235 @@ class TestAgentCoreRotation:
         assert agent.rotate_api_key() is True
         assert agent._client is None
         assert agent._current_api_key() == "k2"
+
+
+class TestFreellmapiFallback:
+    """ChatGPT usage-cap (429 usage_limit_reached) fails over to local FreeLLMAPI."""
+
+    def test_is_chatgpt_usage_limit_error_detects_marker(self):
+        from vulnclaw.agent.llm_client import _is_chatgpt_usage_limit_error
+
+        assert (
+            _is_chatgpt_usage_limit_error(
+                'error code: 429 - {"error":{"type":"usage_limit_reached"}}'
+            )
+            is True
+        )
+        assert _is_chatgpt_usage_limit_error("rate limit exceeded") is False
+        assert _is_chatgpt_usage_limit_error("error code: 429 too many requests") is False
+
+    def _agent(self, **llm):
+        from vulnclaw.agent.core import AgentCore
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        for k, v in llm.items():
+            setattr(config.llm, k, v)
+        return AgentCore(config)
+
+    def test_maybe_switch_requires_opt_in_and_key(self):
+        from vulnclaw.agent.llm_client import _maybe_switch_to_freellmapi_fallback
+
+        agent = self._agent()
+        error_text = "usage_limit_reached"
+
+        # Not opted in -> no-op.
+        assert _maybe_switch_to_freellmapi_fallback(agent, error_text) is False
+        assert agent._chatgpt_usage_exhausted is False
+
+        # Opted in but no unified key configured -> still a no-op.
+        agent.config.llm.freellmapi_fallback = True
+        assert _maybe_switch_to_freellmapi_fallback(agent, error_text) is False
+        assert agent._chatgpt_usage_exhausted is False
+
+        # Opted in + key present -> switches, and rewrites kwargs["model"] in
+        # place so an in-flight retry loop targets the fallback immediately.
+        agent.config.llm.freellmapi_api_key = "freellmapi-test"
+        kwargs = {"model": "gpt-5.5", "messages": []}
+        assert _maybe_switch_to_freellmapi_fallback(agent, error_text, kwargs) is True
+        assert agent._chatgpt_usage_exhausted is True
+        assert kwargs["model"] == "auto"
+
+    def test_maybe_switch_ignores_unrelated_errors(self):
+        from vulnclaw.agent.llm_client import _maybe_switch_to_freellmapi_fallback
+
+        agent = self._agent(freellmapi_fallback=True, freellmapi_api_key="freellmapi-test")
+
+        assert _maybe_switch_to_freellmapi_fallback(agent, "rate limit exceeded") is False
+        assert agent._chatgpt_usage_exhausted is False
+
+    def test_get_client_routes_to_freellmapi_once_exhausted(self, monkeypatch):
+        fake_openai = ModuleType("openai")
+        created: list[dict] = []
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                created.append(kwargs)
+
+        fake_openai.OpenAI = FakeOpenAI
+        monkeypatch.setitem(sys.modules, "openai", fake_openai)
+
+        agent = self._agent(
+            freellmapi_fallback=True,
+            freellmapi_api_key="freellmapi-test",
+            freellmapi_base_url="http://localhost:3001/v1",
+        )
+        agent._chatgpt_usage_exhausted = True
+
+        agent._get_client()
+
+        assert created[-1]["api_key"] == "freellmapi-test"
+        assert created[-1]["base_url"] == "http://localhost:3001/v1"
+
+    async def test_call_llm_fails_over_to_freellmapi_after_usage_cap(self, monkeypatch):
+        """End-to-end: usage_limit_reached on the primary switches backends and
+        completes the *same* conversation against FreeLLMAPI instead of dying."""
+        from vulnclaw.agent import llm_client
+
+        class DummyLoop:
+            async def run_in_executor(self, executor, fn):
+                return fn()
+
+        class DummyClient:
+            def __init__(self, name):
+                self.name = name
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+            def _create(self, **kwargs):
+                if self.name == "chatgpt":
+                    raise RuntimeError(
+                        'Error code: 429 - {"error":{"type":"usage_limit_reached"}}'
+                    )
+                # Fallback must see the *whole* forwarded conversation and the
+                # freellmapi (not ChatGPT-only) model.
+                assert kwargs["model"] == "auto"
+                assert kwargs["messages"][-1]["content"] == "help me create a .exe file"
+                return _full_ok_response()
+
+        class DummyAgent:
+            _chatgpt_usage_exhausted = False
+
+            class _Config:
+                class _LLM:
+                    model = "gpt-5.5"
+                    max_tokens = 256
+                    temperature = 0.1
+                    provider = "openai"
+                    reasoning_effort = "high"
+                    freellmapi_fallback = True
+                    freellmapi_api_key = "freellmapi-test"
+                    freellmapi_base_url = "http://localhost:3001/v1"
+                    freellmapi_model = "auto"
+
+                llm = _LLM()
+
+            class _Context:
+                @staticmethod
+                def get_messages():
+                    return [{"role": "user", "content": "help me create a .exe file"}]
+
+            config = _Config()
+            context = _Context()
+
+            def _build_openai_tools(self):
+                return []
+
+            def _get_client(self):
+                return DummyClient("freellmapi" if self._chatgpt_usage_exhausted else "chatgpt")
+
+            def rotate_api_key(self):
+                return False
+
+        dummy = DummyAgent()
+        monkeypatch.setattr(llm_client.asyncio, "get_running_loop", lambda: DummyLoop())
+
+        result = await llm_client.call_llm(dummy, "sys")
+
+        assert dummy._chatgpt_usage_exhausted is True
+        assert "ok" in result
+
+    async def test_call_llm_stream_fails_over_to_freellmapi_after_usage_cap(self, monkeypatch):
+        """Same failover, but through the streaming path the REPL actually uses."""
+        from vulnclaw.agent import llm_client
+
+        def _text_chunk(text):
+            delta = SimpleNamespace(content=text, reasoning_content=None, tool_calls=None)
+            return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+        class DummyClient:
+            def __init__(self, name):
+                self.name = name
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+            def _create(self, **kwargs):
+                if self.name == "chatgpt":
+                    raise RuntimeError(
+                        'Error code: 429 - {"error":{"type":"usage_limit_reached"}}'
+                    )
+                assert kwargs["model"] == "auto"
+                assert kwargs["messages"][-1]["content"] == "help me create a .exe file"
+                return [_text_chunk("ok from freellmapi")]
+
+        class DummyAgent:
+            _chatgpt_usage_exhausted = False
+
+            class _Config:
+                class _LLM:
+                    model = "gpt-5.5"
+                    max_tokens = 256
+                    temperature = 0.1
+                    provider = "openai"
+                    reasoning_effort = "high"
+                    freellmapi_fallback = True
+                    freellmapi_api_key = "freellmapi-test"
+                    freellmapi_base_url = "http://localhost:3001/v1"
+                    freellmapi_model = "auto"
+
+                llm = _LLM()
+
+            class _Context:
+                @staticmethod
+                def get_messages():
+                    return [{"role": "user", "content": "help me create a .exe file"}]
+
+            config = _Config()
+            context = _Context()
+
+            def _build_openai_tools(self):
+                return []
+
+            def _get_client(self):
+                return DummyClient("freellmapi" if self._chatgpt_usage_exhausted else "chatgpt")
+
+        class RecordingSink:
+            def __init__(self):
+                self.statuses: list[str] = []
+                self.content: list[str] = []
+
+            def on_status(self, message):
+                self.statuses.append(message)
+
+            def on_thinking_token(self, token):
+                pass
+
+            def on_content_token(self, token):
+                self.content.append(token)
+
+            def on_tool_call(self, name, args):
+                pass
+
+            def on_tool_result(self, result_summary):
+                pass
+
+            def on_stream_end(self):
+                pass
+
+        dummy = DummyAgent()
+        sink = RecordingSink()
+
+        result = await llm_client.call_llm_stream(dummy, "sys", sink)
+
+        assert dummy._chatgpt_usage_exhausted is True
+        assert "ok from freellmapi" in result
+        assert "".join(sink.content) == "ok from freellmapi"
+        assert any("freellmapi" in s.lower() for s in sink.statuses)

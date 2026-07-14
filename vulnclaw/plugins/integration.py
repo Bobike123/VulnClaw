@@ -48,7 +48,7 @@ def plugin_finding_to_vuln_finding(
     source = plugin_id or finding.metadata.get("plugin_id", "")
     description = finding.description
     if source:
-        prefix = f"[插件:{source}] "
+        prefix = f"[plugin:{source}] "
         description = f"{prefix}{description}" if description else prefix.strip()
 
     return VulnerabilityFinding(
