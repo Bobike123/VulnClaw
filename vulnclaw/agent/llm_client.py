@@ -13,12 +13,16 @@ if TYPE_CHECKING:
 
 
 from vulnclaw.agent.token_counter import estimate_tokens, truncate_messages
-from vulnclaw.agent.tool_call_manager import (
-    handle_tool_calls,
-    handle_tool_calls_with_results,
-)
+from vulnclaw.agent.tool_call_manager import handle_tool_calls_with_results
 
 _CONTEXT_USABLE_RATIO = 0.9
+
+# Single-turn chat (AgentCore.chat) has no outer loop, so it must run its own
+# agentic tool loop: execute the model's tool calls, feed the results back, and
+# let it respond — repeating so it can chain steps like read → edit → confirm in
+# one turn. This caps how many such rounds a single chat turn may take before we
+# withhold the tools and force a final text answer (runaway guard).
+_MAX_CHAT_TOOL_ROUNDS = 8
 
 
 def _fit_context_window(agent: AgentContext, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -160,6 +164,32 @@ def _is_openai_reasoning_model(provider: str, model: str) -> bool:
         return False
     normalized = model.lower()
     return normalized.startswith(("o1", "o3", "o4", "gpt-5"))
+
+
+def _active_backend_label(agent: AgentContext) -> str:
+    """Human-readable ``provider/model`` (or ``freellmapi/model``) for status lines.
+
+    Mirrors the same fallback predicate ``build_chat_completion_kwargs`` and
+    ``AgentCore._get_client`` use, so the label always names whichever backend
+    the *next* request actually goes to. Detects FreeLLMAPI by the actual
+    ``base_url`` in play (fallback-triggered *or* configured as the primary
+    backend directly), not just the free-text ``llm.provider`` field — that
+    field is only a cosmetic label a user can leave stale (e.g. still says
+    "deepseek" after pointing ``base_url`` at FreeLLMAPI), so trusting it alone
+    would silently mislabel exactly the case this status line exists for.
+    """
+    llm = agent.config.llm
+    if getattr(agent, "_chatgpt_usage_exhausted", False) and getattr(llm, "freellmapi_fallback", False):
+        return f"freellmapi/{str(getattr(llm, 'freellmapi_model', '') or 'auto')}"
+
+    base_url = str(getattr(llm, "base_url", "") or "").strip().lower()
+    model = str(getattr(llm, "model", "") or "").strip()
+    freellmapi_base_url = str(getattr(llm, "freellmapi_base_url", "") or "").strip().lower()
+    if base_url and (base_url == freellmapi_base_url or "freellmapi" in base_url):
+        return f"freellmapi/{model or 'auto'}"
+
+    provider = str(getattr(llm, "provider", "") or "").strip()
+    return f"{provider}/{model}" if provider else (model or "unknown")
 
 
 def build_chat_completion_kwargs(
@@ -327,6 +357,59 @@ def _format_tool_results_fallback(
     return "\n".join(parts)
 
 
+def _assistant_tool_call_message(content: str, tool_calls: list[Any]) -> dict[str, Any]:
+    """Build the assistant message that echoes the tool calls we just executed.
+
+    This is the message that must precede the ``role=tool`` results in the
+    conversation so the provider can pair each result to its call by id.
+    """
+    return {
+        "role": "assistant",
+        "content": content or "",
+        "tool_calls": [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+            }
+            for tc in tool_calls
+        ],
+    }
+
+
+def _executed_tool_calls(tool_results: list[dict[str, Any]]) -> list[Any]:
+    """Recover the tool_call objects from handle_tool_calls_with_results output.
+
+    Malformed entries (missing the ``tool_call`` key) are logged and skipped so a
+    single bad result can't abort the round.
+    """
+    executed: list[Any] = []
+    for tr in tool_results:
+        if isinstance(tr, dict) and "tool_call" in tr:
+            executed.append(tr["tool_call"])
+        else:
+            print(
+                f"[!] Skipping abnormal tool result: {type(tr).__name__} {str(tr)[:100]}",
+                file=sys.stderr,
+            )
+    return executed
+
+
+def _append_tool_result_messages(
+    messages: list[dict[str, Any]], tool_results: list[dict[str, Any]]
+) -> None:
+    """Append one ``role=tool`` message per executed tool result, in order."""
+    for tr in tool_results:
+        if isinstance(tr, dict) and "tool_call_id" in tr:
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tr["tool_call_id"],
+                    "content": tr.get("content", ""),
+                }
+            )
+
+
 async def call_llm(
     agent: AgentContext,
     system_prompt: str,
@@ -352,9 +435,38 @@ async def call_llm(
     )
 
     choice = response.choices[0]
-    if choice.message.tool_calls:
-        return _prepend_retry_notice(await handle_tool_calls(agent, choice.message), retry_attempts)
-    return _prepend_retry_notice(extract_response(choice.message), retry_attempts)
+    total_retries = retry_attempts
+    rounds = 0
+    # Agentic tool loop: execute the model's tool calls, feed the results back,
+    # and call it again until it answers without a tool call (or we hit the cap).
+    # This is what lets a single chat turn chain steps like read → edit → confirm
+    # instead of returning the first tool's raw output and stopping.
+    while getattr(choice.message, "tool_calls", None):
+        rounds += 1
+        tool_results, _skipped = await handle_tool_calls_with_results(agent, choice.message)
+        executed = _executed_tool_calls(tool_results)
+        if not executed:
+            break
+        messages.append(_assistant_tool_call_message(choice.message.content or "", executed))
+        _append_tool_result_messages(messages, tool_results)
+
+        force_text = rounds >= _MAX_CHAT_TOOL_ROUNDS
+        if force_text:
+            kwargs.pop("tools", None)  # cap reached: withhold tools to force an answer
+        kwargs["messages"] = _fit_context_window(agent, messages)
+
+        response, more = await _call_with_persistent_retries(
+            agent,
+            lambda: agent._get_client().chat.completions.create(**kwargs),
+            "single-round",
+            kwargs=kwargs,
+        )
+        total_retries += more
+        choice = response.choices[0]
+        if force_text:
+            break
+
+    return _prepend_retry_notice(extract_response(choice.message), total_retries)
 
 
 async def call_llm_auto(
@@ -624,6 +736,121 @@ def _assemble_tool_calls(tool_calls_chunks: list[dict]) -> list[Any]:
     return tool_calls
 
 
+async def _consume_stream(
+    stream_sink: "StreamSink", _stream: Any
+) -> tuple[str, list[dict]]:
+    """Consume one streaming completion, emitting tokens to the sink.
+
+    Returns ``(full_text, tool_calls_chunks)`` — the accumulated text (with any
+    reasoning wrapped in ``<thinking>``) and the raw tool-call deltas for later
+    assembly. Does not call ``on_stream_end``; the caller owns round boundaries.
+    """
+    full_text = ""
+    reasoning_buffer = ""
+    tool_calls_chunks: list[dict] = []
+    async for chunk in _stream:
+        if not (chunk.choices and len(chunk.choices) > 0):
+            continue
+        delta = chunk.choices[0].delta
+
+        reasoning = getattr(delta, "reasoning_content", None) or ""
+        if reasoning:
+            reasoning_buffer += reasoning
+            stream_sink.on_thinking_token(reasoning)
+
+        content = getattr(delta, "content", None) or ""
+        if content:
+            if reasoning_buffer:
+                full_text += f"<thinking>\n{reasoning_buffer}\n</thinking>\n"
+                reasoning_buffer = ""
+            stream_sink.on_content_token(content)
+            full_text += content
+
+        _collect_tool_call_deltas(delta, tool_calls_chunks)
+
+    if reasoning_buffer:
+        full_text += f"<thinking>\n{reasoning_buffer}\n</thinking>\n"
+    return full_text, tool_calls_chunks
+
+
+async def _stream_tool_loop(
+    agent: AgentContext,
+    messages: list[dict[str, Any]],
+    kwargs: dict[str, Any],
+    full_text: str,
+    tool_calls_chunks: list[dict],
+    stream_sink: "StreamSink",
+) -> str:
+    """Drive the streamed agentic tool loop for single-turn chat.
+
+    Given the first streamed turn's text and tool-call deltas, execute the tools,
+    feed the results back, and keep streaming follow-up turns until the model
+    answers without a tool call (or the round cap is hit). Returns the final
+    streamed text.
+
+    A follow-up round that errors mid-stream is recovered WITHOUT re-running the
+    tools: the continuation is retried non-streamed (which carries key rotation
+    and the ChatGPT usage-cap → FreeLLMAPI switch); if that also fails, the tool
+    results already gathered are summarized as plain text.
+    """
+    rounds = 0
+    while tool_calls_chunks:
+        tool_calls = _assemble_tool_calls(tool_calls_chunks)
+        if not tool_calls:
+            break
+        rounds += 1
+        for tc in tool_calls:
+            stream_sink.on_tool_call(tc.function.name, tc.function.arguments[:200])
+
+        dummy_msg = type("obj", (object,), {"content": full_text, "tool_calls": tool_calls})()
+        tool_results, skipped_info = await handle_tool_calls_with_results(agent, dummy_msg)
+        executed = _executed_tool_calls(tool_results)
+        if not executed:
+            break
+        for tr in tool_results:
+            if isinstance(tr, dict) and "content" in tr:
+                preview = str(tr["content"])
+                stream_sink.on_tool_result(
+                    preview[:200] + ("..." if len(preview) > 200 else "")
+                )
+
+        messages.append(_assistant_tool_call_message(full_text, executed))
+        _append_tool_result_messages(messages, tool_results)
+
+        force_text = rounds >= _MAX_CHAT_TOOL_ROUNDS
+        if force_text:
+            kwargs.pop("tools", None)  # cap reached: withhold tools to force an answer
+        kwargs["messages"] = _fit_context_window(agent, messages)
+        stream_sink.on_status(f"Summarizing... ({_active_backend_label(agent)})")
+
+        try:
+            response = agent._get_client().chat.completions.create(**kwargs, stream=True)
+            _stream = _ensure_async_iter(response)
+            if _stream is None:
+                raise ValueError("LLM response is not a valid stream object")
+            full_text, tool_calls_chunks = await _consume_stream(stream_sink, _stream)
+            stream_sink.on_stream_end()
+        except Exception:
+            try:
+                resp, _ = await _call_with_persistent_retries(
+                    agent,
+                    lambda: agent._get_client().chat.completions.create(**kwargs),
+                    "tool-summary",
+                    kwargs=kwargs,
+                )
+                full_text = extract_response(resp.choices[0].message)
+            except Exception:
+                full_text = _format_tool_results_fallback(tool_results, skipped_info)
+            stream_sink.on_content_token(full_text)
+            stream_sink.on_stream_end()
+            return full_text
+
+        if force_text:
+            break
+
+    return full_text
+
+
 async def call_llm_stream(
     agent: AgentContext,
     system_prompt: str,
@@ -654,61 +881,23 @@ async def call_llm_stream(
     kwargs = build_chat_completion_kwargs(agent, messages, tools)
 
     try:
-        stream_sink.on_status("Thinking...")
+        stream_sink.on_status(f"Thinking... ({_active_backend_label(agent)})")
         response = client.chat.completions.create(**kwargs, stream=True)
-
-        full_text = ""
-        reasoning_buffer = ""
-        tool_calls_chunks: list[dict] = []
 
         # 自动适配 sync/async Stream（sync Stream 用 _AsyncIterWrapper 包装）
         _stream = _ensure_async_iter(response)
         if _stream is None:
             raise ValueError("LLM response is not a valid stream object")
-        async for chunk in _stream:
-            if chunk.choices and len(chunk.choices) > 0:
-                delta = chunk.choices[0].delta
-
-                # Handle reasoning_content (DeepSeek R1, etc.)
-                reasoning = getattr(delta, "reasoning_content", None) or ""
-                if reasoning:
-                    reasoning_buffer += reasoning
-                    stream_sink.on_thinking_token(reasoning)
-
-                # Handle content
-                content = getattr(delta, "content", None) or ""
-                if content:
-                    if reasoning_buffer:
-                        full_text += f"<thinking>\n{reasoning_buffer}\n</thinking>\n"
-                        reasoning_buffer = ""
-                    stream_sink.on_content_token(content)
-                    full_text += content
-
-                # Handle tool_calls（流式 chat 模式也需要处理）
-                _collect_tool_call_deltas(delta, tool_calls_chunks)
-
-        if reasoning_buffer:
-            full_text += f"<thinking>\n{reasoning_buffer}\n</thinking>\n"
-
+        full_text, tool_calls_chunks = await _consume_stream(stream_sink, _stream)
         stream_sink.on_stream_end()
 
-        # 如果有 tool_calls，路由到 handle_tool_calls（同 call_llm_auto_stream 的逻辑）
+        # Tool calls present → run the agentic tool loop (execute, feed results
+        # back, keep streaming follow-up turns) so the model reacts to what it
+        # read/wrote instead of the raw tool output ending the turn.
         if tool_calls_chunks:
-            tool_calls = _assemble_tool_calls(tool_calls_chunks)
-
-            if tool_calls:
-                dummy_msg = type("obj", (object,), {
-                    "content": full_text,
-                    "tool_calls": tool_calls,
-                })()
-                for tc in tool_calls:
-                    stream_sink.on_tool_call(tc.function.name, tc.function.arguments[:200])
-                # handle_tool_calls 执行工具并做第二轮 LLM 调用
-                result = await handle_tool_calls(agent, dummy_msg)
-                if result:
-                    stream_sink.on_content_token(result)
-                stream_sink.on_stream_end()
-                return result
+            return await _stream_tool_loop(
+                agent, messages, kwargs, full_text, tool_calls_chunks, stream_sink
+            )
 
         return full_text
 
@@ -720,7 +909,7 @@ async def call_llm_stream(
         # than falling through to the "streaming not supported" handling
         # below (which doesn't apply) or re-raising and losing the request.
         if not _retried_via_fallback and _maybe_switch_to_freellmapi_fallback(agent, error_text):
-            stream_sink.on_status("Retrying on FreeLLMAPI...")
+            stream_sink.on_status(f"Retrying... ({_active_backend_label(agent)})")
             return await call_llm_stream(agent, system_prompt, stream_sink, _retried_via_fallback=True)
 
         streaming_markers = [
@@ -783,7 +972,7 @@ async def call_llm_auto_stream(
 
     try:
         # First LLM call with streaming
-        stream_sink.on_status("Thinking...")
+        stream_sink.on_status(f"Thinking... ({_active_backend_label(agent)})")
         response = client.chat.completions.create(**kwargs, stream=True)
 
         full_text = ""
@@ -879,7 +1068,7 @@ async def call_llm_auto_stream(
 
                 # Second LLM call (streaming) for summary
                 kwargs["messages"] = _fit_context_window(agent, messages)
-                stream_sink.on_status("Summarizing...")
+                stream_sink.on_status(f"Summarizing... ({_active_backend_label(agent)})")
 
                 try:
                     response2 = client.chat.completions.create(**kwargs, stream=True)
@@ -916,7 +1105,7 @@ async def call_llm_auto_stream(
                     if not _retried_via_fallback and _maybe_switch_to_freellmapi_fallback(
                         agent, error_text
                     ):
-                        stream_sink.on_status("Retrying on FreeLLMAPI...")
+                        stream_sink.on_status(f"Retrying... ({_active_backend_label(agent)})")
                         return await call_llm_auto_stream(
                             agent,
                             system_prompt,
@@ -937,7 +1126,7 @@ async def call_llm_auto_stream(
         error_text = str(e).lower()
 
         if not _retried_via_fallback and _maybe_switch_to_freellmapi_fallback(agent, error_text):
-            stream_sink.on_status("Retrying on FreeLLMAPI...")
+            stream_sink.on_status(f"Retrying... ({_active_backend_label(agent)})")
             return await call_llm_auto_stream(
                 agent, system_prompt, round_context, stream_sink, _retried_via_fallback=True
             )

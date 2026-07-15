@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from vulnclaw.agent.anti_loop import (
@@ -61,6 +62,10 @@ class AgentCore:
         self.config = config
         self.mcp_manager = mcp_manager
         self.context = ContextManager()
+        # Directory the CLI was launched from — the jail root for file_read /
+        # file_write / file_edit / list_dir (see agent/file_tools.py). Captured
+        # once at agent construction time, before any tool could chdir.
+        self.project_dir = Path.cwd().resolve()
         self._client = None
         # Failover key pool: prefer llm.api_keys, else the single llm.api_key.
         self._key_pool = config.llm.key_pool()

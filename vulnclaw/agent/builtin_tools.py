@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 from urllib.parse import urlparse
 
 from vulnclaw.agent.constraint_policy import validate_tool_action
+from vulnclaw.agent.file_tools import (
+    execute_file_edit,
+    execute_file_read,
+    execute_file_write,
+    execute_list_dir,
+)
 from vulnclaw.agent.network_scan import (
     attach_network_scan_to_session,
     build_nmap_command,
@@ -370,6 +376,18 @@ async def execute_mcp_tool(agent: AgentContext, tool_name: str, args: dict[str, 
     if tool_name == "python_execute":
         return await execute_python(agent, args)
 
+    if tool_name == "file_read":
+        return await execute_file_read(agent, args)
+
+    if tool_name == "file_write":
+        return await execute_file_write(agent, args)
+
+    if tool_name == "file_edit":
+        return await execute_file_edit(agent, args)
+
+    if tool_name == "list_dir":
+        return await execute_list_dir(agent, args)
+
     if tool_name == "load_skill_reference":
         try:
             from vulnclaw.skills.loader import load_skill_reference
@@ -610,6 +628,102 @@ def build_openai_tools(mcp_manager: Any) -> list[dict[str, Any]]:
                         },
                     },
                     "required": ["code"],
+                },
+            },
+        }
+    )
+
+    tools.append(
+        {
+            "type": "function",
+            "function": {
+                "name": "file_read",
+                "description": (
+                    "Read a file from the directory VulnClaw was launched in (your project/workbench dir, "
+                    "not the pentest target). Use for reading source code, configs, PoC scripts, previous "
+                    "reports, wordlists, etc. Paths are relative to the launch directory; absolute paths "
+                    "outside it are refused."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path, relative to the launch directory"},
+                        "offset": {"type": "integer", "description": "Line number to start reading from (0-based, optional)"},
+                        "limit": {"type": "integer", "description": "Max number of lines to read from offset (optional)"},
+                    },
+                    "required": ["path"],
+                },
+            },
+        }
+    )
+
+    tools.append(
+        {
+            "type": "function",
+            "function": {
+                "name": "file_write",
+                "description": (
+                    "Create or overwrite a file in the directory VulnClaw was launched in (e.g. save a PoC "
+                    "script, exploit payload, or draft report to disk). Creates parent directories as needed. "
+                    "Paths outside the launch directory are refused."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path, relative to the launch directory"},
+                        "content": {"type": "string", "description": "Full file content to write"},
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+        }
+    )
+
+    tools.append(
+        {
+            "type": "function",
+            "function": {
+                "name": "file_edit",
+                "description": (
+                    "Make a targeted edit to an existing file in the launch directory by replacing an exact "
+                    "string match. old_string must match exactly (including whitespace) and, by default, "
+                    "uniquely — include enough surrounding context to disambiguate, or pass replace_all."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path, relative to the launch directory"},
+                        "old_string": {"type": "string", "description": "Exact text to find and replace"},
+                        "new_string": {"type": "string", "description": "Replacement text"},
+                        "replace_all": {
+                            "type": "boolean",
+                            "description": "Replace every occurrence instead of requiring a unique match (default false)",
+                        },
+                    },
+                    "required": ["path", "old_string", "new_string"],
+                },
+            },
+        }
+    )
+
+    tools.append(
+        {
+            "type": "function",
+            "function": {
+                "name": "list_dir",
+                "description": (
+                    "List files and subdirectories at a path inside the launch directory (default: the "
+                    "launch directory itself). Non-recursive."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Directory path, relative to the launch directory (default: '.')",
+                        },
+                    },
+                    "required": [],
                 },
             },
         }

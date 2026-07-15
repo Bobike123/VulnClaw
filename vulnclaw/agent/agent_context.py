@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from vulnclaw.agent.context import ContextManager, PentestPhase, SessionState
     from vulnclaw.agent.finding_parser import FindingParser
     from vulnclaw.agent.llm_client import StreamSink
@@ -51,6 +52,7 @@ class AgentContext(Protocol):
     context: ContextManager
     config: VulnClawConfig
     mcp_manager: Any
+    project_dir: Path
     _finding_parser: FindingParser
     _kb_retriever: Any
     _kb_context_cache: dict[Any, str]

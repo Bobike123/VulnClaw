@@ -294,23 +294,30 @@ class TestStreamEndToEnd:
             _Chunk(tool_calls=[_TCDelta(index=0, id=None, name=None, arguments='{"host":')]),
             _Chunk(tool_calls=[_TCDelta(index=0, id=None, name=None, arguments='"a.com"}')]),
         ]
-        mock_client.chat.completions.create.return_value = _SyncStream(chunks)
+        # 第一轮返回聚合后的 tool_call；第二轮返回纯文本，结束工具循环
+        mock_client.chat.completions.create.side_effect = [
+            _SyncStream(chunks),
+            _SyncStream([_Chunk(content="done")]),
+        ]
 
         captured = {}
 
         async def fake_handle(agent_obj, message):
             captured["tool_calls"] = list(message.tool_calls)
-            return "tool done"
+            tc = message.tool_calls[0]
+            return [{"tool_call": tc, "tool_call_id": tc.id, "content": "tool done"}], []
 
         import vulnclaw.agent.llm_client as mod
 
-        orig = mod.handle_tool_calls
-        mod.handle_tool_calls = fake_handle
+        orig = mod.handle_tool_calls_with_results
+        mod.handle_tool_calls_with_results = fake_handle
         try:
-            await call_llm_stream(agent, "sys", stream_sink=spy)
+            result = await call_llm_stream(agent, "sys", stream_sink=spy)
         finally:
-            mod.handle_tool_calls = orig
+            mod.handle_tool_calls_with_results = orig
 
+        # 工具循环把结果回传后拿到第二轮的文本答复
+        assert result == "done"
         assert "tool_calls" in captured
         tcs = captured["tool_calls"]
         assert len(tcs) == 1
@@ -333,16 +340,16 @@ class TestStreamEndToEnd:
 
         async def fake_handle(agent_obj, message):
             called["handle"] = True
-            return "x"
+            return [], []
 
         import vulnclaw.agent.llm_client as mod
 
-        orig = mod.handle_tool_calls
-        mod.handle_tool_calls = fake_handle
+        orig = mod.handle_tool_calls_with_results
+        mod.handle_tool_calls_with_results = fake_handle
         try:
             result = await call_llm_stream(agent, "sys", stream_sink=spy)
         finally:
-            mod.handle_tool_calls = orig
+            mod.handle_tool_calls_with_results = orig
 
         # 不完整调用被丢弃，未执行工具，返回空 full_text
         assert called["handle"] is False

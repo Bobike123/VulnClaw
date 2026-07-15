@@ -523,3 +523,133 @@ class TestFreellmapiFallback:
         assert "ok from freellmapi" in result
         assert "".join(sink.content) == "ok from freellmapi"
         assert any("freellmapi" in s.lower() for s in sink.statuses)
+
+
+class TestActiveBackendLabel:
+    """The 'Thinking... [backend/model]' status label always names the
+    backend the *next* request will actually hit."""
+
+    def _agent(self, **llm):
+        from vulnclaw.agent.core import AgentCore
+        from vulnclaw.config.schema import VulnClawConfig
+
+        config = VulnClawConfig()
+        for k, v in llm.items():
+            setattr(config.llm, k, v)
+        return AgentCore(config)
+
+    def test_labels_primary_provider_and_model(self):
+        from vulnclaw.agent.llm_client import _active_backend_label
+
+        agent = self._agent(provider="openai", model="gpt-5.5")
+        assert _active_backend_label(agent) == "openai/gpt-5.5"
+
+    def test_labels_freellmapi_when_base_url_points_there_even_with_stale_provider(self):
+        """Regression: llm.provider is a cosmetic free-text field a user can
+        leave stale (e.g. 'deepseek') after switching llm.base_url to point
+        directly at FreeLLMAPI as the *primary* backend, not via the usage-cap
+        fallback. The label must reflect the real endpoint, not that field."""
+        from vulnclaw.agent.llm_client import _active_backend_label
+
+        agent = self._agent(
+            provider="deepseek",
+            base_url="http://localhost:3001/v1",
+            freellmapi_base_url="http://localhost:3001/v1",
+            model="auto",
+        )
+        assert _active_backend_label(agent) == "freellmapi/auto"
+
+    def test_labels_freellmapi_once_exhausted_and_enabled(self):
+        from vulnclaw.agent.llm_client import _active_backend_label
+
+        agent = self._agent(
+            provider="openai",
+            model="gpt-5.5",
+            freellmapi_fallback=True,
+            freellmapi_model="auto",
+        )
+        agent._chatgpt_usage_exhausted = True
+
+        assert _active_backend_label(agent) == "freellmapi/auto"
+
+    def test_stays_on_primary_label_when_exhausted_but_fallback_disabled(self):
+        from vulnclaw.agent.llm_client import _active_backend_label
+
+        agent = self._agent(provider="openai", model="gpt-5.5", freellmapi_fallback=False)
+        agent._chatgpt_usage_exhausted = True
+
+        assert _active_backend_label(agent) == "openai/gpt-5.5"
+
+    async def test_streaming_status_includes_backend_label(self, monkeypatch):
+        """End-to-end: the label shown in on_status must match where the call
+        actually lands (regression guard against the label and the routing
+        logic in AgentCore._get_client silently drifting apart)."""
+        from vulnclaw.agent import llm_client
+
+        def _text_chunk(text):
+            delta = SimpleNamespace(content=text, reasoning_content=None, tool_calls=None)
+            return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+        class DummyClient:
+            def __init__(self):
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+            def _create(self, **kwargs):
+                return [_text_chunk("ok")]
+
+        class DummyAgent:
+            _chatgpt_usage_exhausted = False
+
+            class _Config:
+                class _LLM:
+                    model = "gpt-5.5"
+                    max_tokens = 256
+                    temperature = 0.1
+                    provider = "openai"
+                    reasoning_effort = "high"
+                    freellmapi_fallback = False
+
+                llm = _LLM()
+
+            class _Context:
+                @staticmethod
+                def get_messages():
+                    return [{"role": "user", "content": "hi"}]
+
+            config = _Config()
+            context = _Context()
+
+            def _build_openai_tools(self):
+                return []
+
+            def _get_client(self):
+                return DummyClient()
+
+        class RecordingSink:
+            def __init__(self):
+                self.statuses = []
+
+            def on_status(self, message):
+                self.statuses.append(message)
+
+            def on_thinking_token(self, token):
+                pass
+
+            def on_content_token(self, token):
+                pass
+
+            def on_tool_call(self, name, args):
+                pass
+
+            def on_tool_result(self, result_summary):
+                pass
+
+            def on_stream_end(self):
+                pass
+
+        dummy = DummyAgent()
+        sink = RecordingSink()
+
+        await llm_client.call_llm_stream(dummy, "sys", sink)
+
+        assert any("openai/gpt-5.5" in s for s in sink.statuses)

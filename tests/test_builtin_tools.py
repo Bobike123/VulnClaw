@@ -310,3 +310,84 @@ class TestBuiltinMcpExecution:
         assert "constraint_violation" in result
         assert "80" in result
         assert "443" in result
+
+
+class TestFileToolsDispatch:
+    """file_read/file_write/file_edit/list_dir: schema presence + full-chokepoint dispatch.
+
+    Unlike python_execute, these are on by default and classified as local-meta
+    (see constraint_policy.LOCAL_META_TOOLS) — they never touch the network or
+    the target, so task-action constraints (recon-only, strict_mode) must not
+    block them the way they'd block fetch/python_execute/nmap.
+    """
+
+    def test_schemas_are_registered(self):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        tools = builtin_tools.build_openai_tools(mcp_manager=None)
+        names = {t["function"]["name"] for t in tools}
+        assert {"file_read", "file_write", "file_edit", "list_dir"} <= names
+
+    async def test_execute_mcp_tool_dispatches_file_write_and_read(self, tmp_path):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        agent.project_dir = tmp_path
+
+        write_result = await builtin_tools.execute_mcp_tool(
+            agent, "file_write", {"path": "notes.txt", "content": "hello"}
+        )
+        assert "Created" in write_result
+        assert (tmp_path / "notes.txt").read_text() == "hello"
+
+        read_result = await builtin_tools.execute_mcp_tool(
+            agent, "file_read", {"path": "notes.txt"}
+        )
+        assert "hello" in read_result
+
+    async def test_execute_mcp_tool_dispatches_list_dir_and_edit(self, tmp_path):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        agent.project_dir = tmp_path
+        (tmp_path / "f.py").write_text("x = 1\n")
+
+        list_result = await builtin_tools.execute_mcp_tool(agent, "list_dir", {"path": "."})
+        assert "f.py" in list_result
+
+        edit_result = await builtin_tools.execute_mcp_tool(
+            agent, "file_edit", {"path": "f.py", "old_string": "x = 1", "new_string": "x = 2"}
+        )
+        assert "Edited" in edit_result
+        assert (tmp_path / "f.py").read_text() == "x = 2\n"
+
+    async def test_file_write_not_blocked_when_only_recon_allowed(self, tmp_path):
+        """Regression guard: file tools are local-meta, not a 'scan'/'exploit'
+        action — recon-only strict_mode must not treat a local file write as
+        an out-of-scope action the way it correctly would for fetch/nmap."""
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        agent.project_dir = tmp_path
+        agent.session_state.task_constraints.allowed_actions = ["recon"]
+        agent.session_state.task_constraints.strict_mode = True
+
+        result = await builtin_tools.execute_mcp_tool(
+            agent, "file_write", {"path": "poc.py", "content": "print('poc')"}
+        )
+
+        assert "constraint_violation" not in result
+        assert "Created" in result
+
+    async def test_file_write_refuses_traversal_outside_project_dir(self, tmp_path):
+        import vulnclaw.agent.builtin_tools as builtin_tools
+
+        agent = DummyAgent()
+        agent.project_dir = tmp_path
+
+        result = await builtin_tools.execute_mcp_tool(
+            agent, "file_write", {"path": "../escape.txt", "content": "x"}
+        )
+
+        assert "[!]" in result
+        assert not (tmp_path.parent / "escape.txt").exists()

@@ -70,7 +70,14 @@ def validate_phase_transition(
 
 
 # 纯本地/知识类工具：不与目标交互，不纳入「动作范围」约束
-LOCAL_META_TOOLS = {"load_skill_reference", "crypto_decode"}
+LOCAL_META_TOOLS = {
+    "load_skill_reference",
+    "crypto_decode",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "list_dir",
+}
 
 # 真正代表「利用」意图的攻击载荷特征——与传输方式（HTTP 方法/网络库）无关
 EXPLOIT_PAYLOAD_MARKERS = [
