@@ -65,7 +65,7 @@ variables override the config file at startup.
 ## Scanning a target from inside the container
 
 `localhost` / `127.0.0.1` inside the container refers to the **container
-itself**, not your host or another container — so scanning `localhost:PORT`
+itself**, not your host or another container - so scanning `localhost:PORT`
 will never reach a service running elsewhere. Use a routable address instead:
 
 - **Target on your host** (e.g. a `pnpm dev` / `npm run dev` server): add a
@@ -106,7 +106,7 @@ docker compose exec vulnclaw \
 
 - The container binds the Web UI to `0.0.0.0` internally (required for the
   published port to be reachable); the host-side `127.0.0.1:7788` mapping keeps
-  it private to your machine. Change the mapping to expose it elsewhere — only
+  it private to your machine. Change the mapping to expose it elsewhere - only
   do so on networks you trust, as the UI has no authentication.
 - The `chrome-devtools` MCP server is disabled by default; enabling it requires
   a Chrome/Chromium browser which is not installed in this image to keep it

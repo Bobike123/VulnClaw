@@ -1,7 +1,7 @@
 """Tamper-evident structured audit logging (JSONL).
 
-Every safety-relevant event — session start, tool call, scope denial, approval
-decision, generated file, report, error — is appended as one JSON object per line
+Every safety-relevant event - session start, tool call, scope denial, approval
+decision, generated file, report, error - is appended as one JSON object per line
 to a per-session audit file. Each event is chained to the SHA-256 of the previous
 event so that after-the-fact tampering (edits, deletions, reordering) is
 detectable via :func:`verify_chain`.

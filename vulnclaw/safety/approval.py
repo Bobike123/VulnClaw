@@ -5,9 +5,9 @@ OSINT, JS secret extraction, PoC generation, persistent mode, request mutation,
 browser form submission) must be approved before they run.
 
 Approval modes:
-- ``dry-run``          — never execute; explain what would happen.
-- ``interactive``      — prompt on a TTY (denied when no TTY is attached).
-- ``non-interactive``  — approve only when a matching entry exists in a signed
+- ``dry-run``          - never execute; explain what would happen.
+- ``interactive``      - prompt on a TTY (denied when no TTY is attached).
+- ``non-interactive``  - approve only when a matching entry exists in a signed
   approval file; otherwise deny. There is no silent auto-approve.
 
 This module has no dependency on the agent layer: the caller classifies the

@@ -8,7 +8,7 @@ plus an out-of-band emergency stop.
 A :class:`Budget` tracks wall-clock time, completed cycles, and tool calls, and
 reports a stop reason once any configured limit is reached. Independently, it
 honours an **emergency-stop file**: creating a sentinel file (default
-``.vulnclaw-STOP`` in the working directory) halts the run at the next check —
+``.vulnclaw-STOP`` in the working directory) halts the run at the next check -
 a kill switch an operator can trip from another shell without signals or IPC.
 
 The module has no dependency on the agent layer: the caller drives it
@@ -52,21 +52,21 @@ class BudgetStatus:
         if not self.stopped:
             return ""
         if self.reason == REASON_EMERGENCY_STOP:
-            return "[budget] emergency stop file detected — halting persistent run."
+            return "[budget] emergency stop file detected - halting persistent run."
         if self.reason == REASON_DURATION:
             return (
                 f"[budget] duration budget reached "
-                f"({self.elapsed_seconds:.0f}s ≥ {self.max_duration_seconds:.0f}s) — halting."
+                f"({self.elapsed_seconds:.0f}s ≥ {self.max_duration_seconds:.0f}s) - halting."
             )
         if self.reason == REASON_CYCLES:
             return (
                 f"[budget] cycle budget reached "
-                f"({self.cycles} ≥ {self.max_cycles}) — halting."
+                f"({self.cycles} ≥ {self.max_cycles}) - halting."
             )
         if self.reason == REASON_TOOL_CALLS:
             return (
                 f"[budget] tool-call budget reached "
-                f"({self.tool_calls} ≥ {self.max_tool_calls}) — halting."
+                f"({self.tool_calls} ≥ {self.max_tool_calls}) - halting."
             )
         if self.reason == REASON_MANUAL:
             return "[budget] persistent run stopped by operator request."

@@ -73,7 +73,7 @@ def build_dynamic_system_prompt(
                 recon_no_personnel = RECON_INSTRUCTION.replace(
                     "### Dimension 4: Personnel information ⚡ conditional",
                     "### Dimension 4: Personnel information ⚡ conditional "
-                    "(not activated this run — user did not mention social-eng / people-tracking needs)",
+                    "(not activated this run - user did not mention social-eng / people-tracking needs)",
                 )
                 recon_no_personnel = (
                     recon_no_personnel.replace(

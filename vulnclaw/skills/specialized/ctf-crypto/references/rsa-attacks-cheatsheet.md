@@ -144,5 +144,5 @@ if roots:
 
 ## 在线分解工具
 
-- https://factordb.com — 查询已分解的 n
-- http://sagecell.sagemath.org — 在线 Sage 计算
+- https://factordb.com - 查询已分解的 n
+- http://sagecell.sagemath.org - 在线 Sage 计算

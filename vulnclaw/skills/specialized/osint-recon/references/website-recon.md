@@ -3,11 +3,11 @@
 ## 1. 网站架构识别
 
 ### 技术栈推断方法
-1. **HTTP 响应头** — Server、X-Powered-By、Set-Cookie 特征
-2. **HTML 源码特征** — meta generator、特定 class/id 命名
-3. **JS 文件路径** — /static/js/app.js、/wp-content/、/assets/
-4. **Cookie 名称** — PHPSESSID(php)、JSESSIONID(Java)、_rails_session(Rails)
-5. **URL 路径** — ?id= (PHP)、/api/ (REST)、/wp-admin/ (WordPress)
+1. **HTTP 响应头** - Server、X-Powered-By、Set-Cookie 特征
+2. **HTML 源码特征** - meta generator、特定 class/id 命名
+3. **JS 文件路径** - /static/js/app.js、/wp-content/、/assets/
+4. **Cookie 名称** - PHPSESSID(php)、JSESSIONID(Java)、_rails_session(Rails)
+5. **URL 路径** - ?id= (PHP)、/api/ (REST)、/wp-admin/ (WordPress)
 
 ### 常见架构组合
 | 语言 | 框架 | 数据库 | 服务器 | 特征 |
@@ -258,10 +258,10 @@ if r3.status_code == 200:
 ## 6. 旁站查询（同 IP 反查域名）
 
 ### 查询方法
-1. **站长工具** — https://stool.chinaz.com/same
-2. **微步在线** — https://x.threatbook.cn
-3. **crt.sh** — 用 IP 查询证书关联域名
-4. **Censys** — https://search.censys.io
+1. **站长工具** - https://stool.chinaz.com/same
+2. **微步在线** - https://x.threatbook.cn
+3. **crt.sh** - 用 IP 查询证书关联域名
+4. **Censys** - https://search.censys.io
 
 ### python_execute 旁站查询
 ```python

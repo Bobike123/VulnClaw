@@ -19,7 +19,7 @@ _CONTEXT_USABLE_RATIO = 0.9
 
 # Single-turn chat (AgentCore.chat) has no outer loop, so it must run its own
 # agentic tool loop: execute the model's tool calls, feed the results back, and
-# let it respond — repeating so it can chain steps like read → edit → confirm in
+# let it respond - repeating so it can chain steps like read → edit → confirm in
 # one turn. This caps how many such rounds a single chat turn may take before we
 # withhold the tools and force a final text answer (runaway guard).
 _MAX_CHAT_TOOL_ROUNDS = 8
@@ -118,7 +118,7 @@ def _is_chatgpt_usage_limit_error(error_text: str) -> bool:
     Distinct from the generic ``_is_key_exhausted_error`` rate-limit markers:
     this is the ChatGPT subscription's *account-level* usage cap (not a
     transient per-key rate limit), which won't clear by rotating keys or
-    retrying in a few seconds — it needs a different backend, or a multi-hour
+    retrying in a few seconds - it needs a different backend, or a multi-hour
     wait for the quota to reset.
     """
     return "usage_limit_reached" in error_text
@@ -132,7 +132,7 @@ def _maybe_switch_to_freellmapi_fallback(
     Triggered only by the ChatGPT usage-cap error, and only when the user has
     opted in (``llm.freellmapi_fallback``) and configured a unified API key.
     Marks the agent as exhausted (sticky for the rest of this AgentCore's
-    life — see ``AgentCore._get_client``) and, if given the in-flight
+    life - see ``AgentCore._get_client``) and, if given the in-flight
     ``kwargs`` dict, swaps its ``model`` in place so an immediate retry in the
     same call targets the fallback instead of the dead ChatGPT backend.
     """
@@ -150,7 +150,7 @@ def _maybe_switch_to_freellmapi_fallback(
         kwargs["model"] = str(getattr(llm, "freellmapi_model", "") or "auto")
     if not already_switched:
         print(
-            "[!] ChatGPT usage limit reached — switching to local FreeLLMAPI "
+            "[!] ChatGPT usage limit reached - switching to local FreeLLMAPI "
             f"({getattr(llm, 'freellmapi_base_url', '')}) for the rest of this session.",
             file=sys.stdout,
             flush=True,
@@ -173,7 +173,7 @@ def _active_backend_label(agent: AgentContext) -> str:
     ``AgentCore._get_client`` use, so the label always names whichever backend
     the *next* request actually goes to. Detects FreeLLMAPI by the actual
     ``base_url`` in play (fallback-triggered *or* configured as the primary
-    backend directly), not just the free-text ``llm.provider`` field — that
+    backend directly), not just the free-text ``llm.provider`` field - that
     field is only a cosmetic label a user can leave stale (e.g. still says
     "deepseek" after pointing ``base_url`` at FreeLLMAPI), so trusting it alone
     would silently mislabel exactly the case this status line exists for.
@@ -211,7 +211,7 @@ def build_chat_completion_kwargs(
     provider = str(getattr(llm, "provider", "") or "").lower()
     if getattr(agent, "_chatgpt_usage_exhausted", False) and getattr(llm, "freellmapi_fallback", False):
         # On the FreeLLMAPI fallback, ChatGPT-only model slugs (e.g. gpt-5.5)
-        # don't exist there — use its own configured/"auto" model instead.
+        # don't exist there - use its own configured/"auto" model instead.
         model = str(getattr(llm, "freellmapi_model", "") or "auto")
     else:
         model = str(getattr(llm, "model", "") or "")
@@ -249,7 +249,7 @@ async def _call_with_persistent_retries(
     """Keep retrying retriable LLM calls until success or manual interruption.
 
     ``kwargs`` is the same dict object closed over by ``request_fn`` (when the
-    caller has one) — passing it through lets a ChatGPT-usage-cap failure swap
+    caller has one) - passing it through lets a ChatGPT-usage-cap failure swap
     ``kwargs["model"]`` to the FreeLLMAPI fallback in place, so the very next
     retry in this loop already targets the right backend/model.
 
@@ -741,7 +741,7 @@ async def _consume_stream(
 ) -> tuple[str, list[dict]]:
     """Consume one streaming completion, emitting tokens to the sink.
 
-    Returns ``(full_text, tool_calls_chunks)`` — the accumulated text (with any
+    Returns ``(full_text, tool_calls_chunks)`` - the accumulated text (with any
     reasoning wrapped in ``<thinking>``) and the raw tool-call deltas for later
     assembly. Does not call ``on_stream_end``; the caller owns round boundaries.
     """

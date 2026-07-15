@@ -7,8 +7,8 @@ child interpreter with:
 - a scrubbed, allowlisted environment (no API keys / secrets are inherited) with
   ``HOME`` redirected into the sandbox,
 - an in-process guard that denies reads/writes of sensitive paths (SSH keys,
-  ``.env``, cloud/browser credentials, shell history, VulnClaw config) and — in
-  ``safe`` mode — confines file access to the working directory,
+  ``.env``, cloud/browser credentials, shell history, VulnClaw config) and - in
+  ``safe`` mode - confines file access to the working directory,
 - outbound network disabled by default (``socket`` is neutralized),
 - POSIX resource limits (CPU, address space, file size) and a wall-clock timeout,
 - output-size caps.
@@ -36,7 +36,7 @@ _MAIN_FILENAME = "_sbx_main.py"
 
 # Constructs that can escape the in-process open()/socket guards (they spawn a
 # shell, a child process, or reach native memory). These are refused statically
-# in every mode — the sandbox cannot contain them. Static matching is
+# in every mode - the sandbox cannot contain them. Static matching is
 # best-effort and bypassable via obfuscation; it is one layer, not the boundary.
 _BLOCKED_CODE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bos\s*\.\s*system\b"),
@@ -206,7 +206,7 @@ def code_hash(code: str) -> str:
 
 
 def _build_env(workdir: str) -> dict[str, str]:
-    """An allowlisted environment — no inherited secrets."""
+    """An allowlisted environment - no inherited secrets."""
     return {
         "PATH": os.environ.get("PATH", ""),
         "PYTHONIOENCODING": "utf-8",

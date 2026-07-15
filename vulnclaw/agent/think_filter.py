@@ -1,4 +1,4 @@
-"""VulnClaw Think Tag Filter — strip <think>/<thinking> blocks from LLM output."""
+"""VulnClaw Think Tag Filter - strip <think>/<thinking> blocks from LLM output."""
 
 from __future__ import annotations
 

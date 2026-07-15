@@ -1,4 +1,4 @@
-"""VulnClaw Agent Core — the main AI agent loop with tool calling."""
+"""VulnClaw Agent Core - the main AI agent loop with tool calling."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ from vulnclaw.config.schema import VulnClawConfig
 from vulnclaw.config.settings import make_openai_client
 from vulnclaw.target_state.store import save_target_state
 
-# Optional KB integration — gracefully degrade if KB data is unavailable
+# Optional KB integration - gracefully degrade if KB data is unavailable
 try:
     from vulnclaw.kb.retriever import KnowledgeRetriever, RetrieverStatus
 except Exception:
@@ -62,7 +62,7 @@ class AgentCore:
         self.config = config
         self.mcp_manager = mcp_manager
         self.context = ContextManager()
-        # Directory the CLI was launched from — the jail root for file_read /
+        # Directory the CLI was launched from - the jail root for file_read /
         # file_write / file_edit / list_dir (see agent/file_tools.py). Captured
         # once at agent construction time, before any tool could chdir.
         self.project_dir = Path.cwd().resolve()
@@ -77,7 +77,7 @@ class AgentCore:
         self._freellmapi_client = None
         self.runtime = RuntimeState()
         self._reset_runtime_state()
-        # Optional KB retriever — lazily initialized on first use
+        # Optional KB retriever - lazily initialized on first use
         self._kb_retriever: Any = None
         self._kb_context_cache: dict[Any, str] = {}
         self._finding_parser = FindingParser(self.context, self.runtime)
@@ -384,7 +384,7 @@ class AgentCore:
         if self.mcp_manager:
             mcp_tools = self.mcp_manager.get_tool_schemas()
 
-        # Collect skill context — dynamically dispatch based on user input
+        # Collect skill context - dynamically dispatch based on user input
         skill_context = self._get_active_skill_context(user_input=user_input)
 
         phase = (
@@ -475,7 +475,7 @@ class AgentCore:
         """
         result = AgentResult()
 
-        # Chat mode is free-form — don't inherit constraints from previous sessions
+        # Chat mode is free-form - don't inherit constraints from previous sessions
         self.context.state.task_constraints = TaskConstraints()
 
         # Detect target and phase from input
@@ -494,7 +494,7 @@ class AgentCore:
         # Add user message to context
         self.context.add_user_message(user_input)
 
-        # Build system prompt — pass user_input for dynamic Skill dispatch
+        # Build system prompt - pass user_input for dynamic Skill dispatch
         system_prompt = self._build_system_prompt(
             detected_target, auto_mode=False, user_input=user_input
         )
@@ -516,7 +516,7 @@ class AgentCore:
         except Exception as e:
             result.output = f"[!] Agent error: {e}"
             # This bypasses call_llm's normal streaming path entirely, so unlike
-            # a successful response it was never pushed through stream_sink —
+            # a successful response it was never pushed through stream_sink -
             # without this it's silently swallowed and the REPL just looks hung.
             if stream_sink is not None:
                 stream_sink.on_content_token(result.output)
@@ -595,7 +595,7 @@ class AgentCore:
         # stream_sink 由 main.py 传入，逐级透传到 call_llm_auto_stream 实现流式输出
         stream_sink: Optional["StreamSink"] = None,
     ) -> list["PersistentCycleResult"]:
-        """Persistent penetration test — runs cycles of auto_pentest until stopped."""
+        """Persistent penetration test - runs cycles of auto_pentest until stopped."""
         return await run_persistent_pentest(
             self,
             user_input,
@@ -619,7 +619,7 @@ class AgentCore:
     def _detect_flag_claim(self, output: str) -> Optional[str]:
         """Detect if the LLM claims to have found a flag, return the claimed flag or None.
 
-        This is used to trigger automatic verification — if the LLM claims
+        This is used to trigger automatic verification - if the LLM claims
         a flag but we can't verify it independently, we should NOT stop.
         """
         return detect_flag_claim(output)
@@ -635,7 +635,7 @@ class AgentCore:
         """Check if a step represents meaningful progress (not just a failed retry).
 
         Only steps with actual discoveries or confirmations count as progress.
-        A step is considered NOT meaningful only when it is a PURE failure —
+        A step is considered NOT meaningful only when it is a PURE failure -
         i.e., it mentions failure indicators AND has no progress indicators at all.
         If a step has BOTH failure and progress keywords (e.g. "XSS测试超时但发现新路径"),
         it is still meaningful because progress was made.

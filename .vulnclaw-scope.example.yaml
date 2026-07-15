@@ -1,4 +1,4 @@
-# VulnClaw engagement scope — the authorization boundary for ALL target activity.
+# VulnClaw engagement scope - the authorization boundary for ALL target activity.
 #
 # VulnClaw is DEFAULT-DENY:
 # only what is listed here, plus localhost, is in scope.

@@ -1,4 +1,4 @@
-# 🦞 War Story #001 — NSSCTF PHP 正则绕过 + call_user_func
+# 🦞 War Story #001 - NSSCTF PHP 正则绕过 + call_user_func
 
 ## 元信息
 
@@ -6,7 +6,7 @@
 |------|------|
 | **日期** | 2026-04-19 |
 | **目标** | `http://node5.anna.nssctf.cn:23284/` |
-| **题目类型** | Web — PHP 正则绕过 + call_user_func 数组回调 |
+| **题目类型** | Web - PHP 正则绕过 + call_user_func 数组回调 |
 | **关键词** | PHP、正则绕过、反序列化、call_user_func、数组绕过 |
 | **VulnClaw 轮数** | 12 |
 | **MCP 工具** | fetch |
@@ -20,12 +20,12 @@
 |------|------|------|
 | 1 | GET 请求首页 | Apache/2.4.54 + PHP/7.4.30，发现 `js/1.js` 和 `css/1.css` |
 | 2 | 查看 `js/1.js` | JS 注释中发现 Base64 字符串 `NSSCTF{TnNTY1RmLnBocA==}` |
-| 3 | Base64 解码 | 得到 `NsScTf.php` — 隐藏的 PHP 文件 |
+| 3 | Base64 解码 | 得到 `NsScTf.php` - 隐藏的 PHP 文件 |
 | 4 | GET 请求 `NsScTf.php` | 获取源码：NSSCTF 反序列化类 + `call_user_func` 路径 |
 | 5 | 分析正则 | `preg_match("/n|c/m", ...)` 无 `i` 修饰符 → 大小写可绕过 |
-| 6 | 尝试 `p=Nss::ctf`（大小写绕过） | 返回 "no" — Nss 类不存在，需找正确类名 |
+| 6 | 尝试 `p=Nss::ctf`（大小写绕过） | 返回 "no" - Nss 类不存在，需找正确类名 |
 | 7 | 访问 `hint2.php` | 提示：**"有没有一种可能，类是nss2"** |
-| 8 | 尝试 `p=Nss2::Ctf` | 返回 "no" — `Nss2` 中的小写 `s` 不影响，但可能 `::` 被处理有问题 |
+| 8 | 尝试 `p=Nss2::Ctf` | 返回 "no" - `Nss2` 中的小写 `s` 不影响，但可能 `::` 被处理有问题 |
 | 9 | 分析 `call_user_func` 语义 | `call_user_func` 支持数组回调 `['类名', '方法名']` |
 | 10 | 构造数组绕过 payload | `p[]=nss2&p[]=ctf` → 数组绕过 `preg_match`，回调调用 `nss2::ctf()` |
 | 11 | 发送 `GET /NsScTf.php?p[]=nss2&p[]=ctf` | ✅ 成功！响应包含 `<?php $flag="NSSCTF{7d67ec46-4d71-4dc4-904b-151b8a923e53}";?>` |
@@ -113,7 +113,7 @@ GET /NsScTf.php?p[]=nss2&p[]=ctf
 **原理**:
 1. `?p[]=nss2&p[]=ctf` 使 `$_GET['p']` 变成数组 `['nss2', 'ctf']`
 2. `preg_match("/n|c/m", array, ...)` 第二个参数需要字符串，传入数组返回 `false` → **绕过正则**
-3. `call_user_func(['nss2', 'ctf'])` — 数组回调等价于 `nss2::ctf()` → 包含 `flag.php` 并输出
+3. `call_user_func(['nss2', 'ctf'])` - 数组回调等价于 `nss2::ctf()` → 包含 `flag.php` 并输出
 
 ### Payload 2: 大小写绕过（理论上可行）
 

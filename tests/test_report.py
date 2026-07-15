@@ -1,4 +1,4 @@
-"""VulnClaw Report Module Tests — generator.py + poc_builder.py"""
+"""VulnClaw Report Module Tests - generator.py + poc_builder.py"""
 
 from pathlib import Path
 
@@ -394,7 +394,7 @@ class TestReportGenerator:
             session=session,
             cycle_num=2,
             total_findings=3,
-            new_findings=2,  # all-findings delta — would over-count without prev ids
+            new_findings=2,  # all-findings delta - would over-count without prev ids
             total_steps=10,
             rounds_per_cycle=100,
             output_path=str(tmp_path / "cycle2.md"),

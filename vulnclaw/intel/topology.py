@@ -2,7 +2,7 @@
 
 Ported from HackBot (``hackbot/core/topology.py``). Parses nmap (text or XML) and
 masscan output into a host/port/service graph, and renders it as JSON (for a
-future D3 view), ASCII (CLI), or markdown. Pure/offline — it only processes scan
+future D3 view), ASCII (CLI), or markdown. Pure/offline - it only processes scan
 text the agent already holds, so the ``topology_build`` tool is read-only.
 """
 
@@ -403,8 +403,8 @@ def format_markdown(topo: NetworkTopology) -> str:
         if len(open_ports) > 8:
             summary += f" +{len(open_ports) - 8} more"
         lines.append(
-            f"| {host.ip} | {host.hostname or '—'} | {host.os or '—'} | "
-            f"{summary or '—'} | {host.status} |"
+            f"| {host.ip} | {host.hostname or '-'} | {host.os or '-'} | "
+            f"{summary or '-'} | {host.status} |"
         )
     lines.append("")
 
@@ -420,8 +420,8 @@ def format_markdown(topo: NetworkTopology) -> str:
         lines.append("|------|---------|---------|---------|")
         for p in open_ports:
             lines.append(
-                f"| {p['port']}/{p.get('protocol', 'tcp')} | {p.get('service', '—')} | "
-                f"{p.get('product', '—')} | {p.get('version', '—')} |"
+                f"| {p['port']}/{p.get('protocol', 'tcp')} | {p.get('service', '-')} | "
+                f"{p.get('product', '-')} | {p.get('version', '-')} |"
             )
         lines.append("")
     return "\n".join(lines)

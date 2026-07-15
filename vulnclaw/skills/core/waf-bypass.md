@@ -1,6 +1,6 @@
 ---
 name: waf-bypass
-description: WAF 绕过技巧库 — 各类WAF绕过方法
+description: WAF 绕过技巧库 - 各类WAF绕过方法
 ---
 
 # WAF 绕过技巧库

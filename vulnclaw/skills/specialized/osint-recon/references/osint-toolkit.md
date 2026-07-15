@@ -1,6 +1,6 @@
 # OSINT 工具使用手册
 
-## 1. crt.sh — 证书透明度子域名查询
+## 1. crt.sh - 证书透明度子域名查询
 
 ### 用法
 ```python
@@ -31,7 +31,7 @@ def query_crtsh(domain):
 - 结果包含通配符证书（`*.example.com`），需过滤
 - 去重后返回
 
-## 2. GitHub API — 代码与用户搜索
+## 2. GitHub API - 代码与用户搜索
 
 ### 搜索代码（检测泄露）
 ```python
@@ -311,11 +311,11 @@ def icp_lookup(domain):
 ## 11. 子域名发现（多方法）
 
 ### 方法组合策略
-1. **crt.sh** — 证书透明度（最快）
-2. **搜索引擎 dork** — Google/Bing site: 搜索
-3. **DNS 爆破** — 常见前缀字典
-4. **DNS 区域传送** — 尝试 axfr
-5. **JS 文件分析** — 从页面 JS 中提取子域名
+1. **crt.sh** - 证书透明度（最快）
+2. **搜索引擎 dork** - Google/Bing site: 搜索
+3. **DNS 爆破** - 常见前缀字典
+4. **DNS 区域传送** - 尝试 axfr
+5. **JS 文件分析** - 从页面 JS 中提取子域名
 
 ### python_execute 子域名爆破
 ```python

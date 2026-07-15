@@ -1,4 +1,4 @@
-"""黑板图模型 — Fact / Intent 双原语驱动的状态空间搜索。
+"""黑板图模型 - Fact / Intent 双原语驱动的状态空间搜索。
 
 渗透测试视为从 origin 向 goal 的有向状态空间搜索：
 - Fact:   已确认的客观事实（探索的落脚点）
@@ -39,7 +39,7 @@ class BoardIntent(BaseModel):
 
 
 class ToolCallRecord(BaseModel):
-    """已执行工具调用的紧凑记录——防止跨 intent 重复调用同一工具+同一参数。"""
+    """已执行工具调用的紧凑记录--防止跨 intent 重复调用同一工具+同一参数。"""
     tool: str
     key_args: str = ""
     intent_id: str = ""

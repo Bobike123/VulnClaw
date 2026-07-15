@@ -717,7 +717,7 @@ SLASH_COMMANDS: dict[str, str] = _build_slash_commands()
 def _build_repl_commands() -> dict[str, str]:
     """Built-in commands the classic REPL implements itself (not skills).
 
-    These have real handlers in ``_run_repl`` — unlike the wider Textual-TUI
+    These have real handlers in ``_run_repl`` - unlike the wider Textual-TUI
     ``SLASH_COMMANDS`` set, which the classic REPL cannot dispatch.
     """
     return {
@@ -775,7 +775,7 @@ def list_skill_palette_entries(prefix: str = "") -> list[tuple[str, str]]:
 def list_repl_palette_entries(prefix: str = "") -> list[tuple[str, str]]:
     """Classic-REPL ``/`` palette: built-in commands first, then skills.
 
-    The Textual TUI's other slash commands (``/mode`` etc.) are still excluded —
+    The Textual TUI's other slash commands (``/mode`` etc.) are still excluded -
     only the commands the classic REPL actually handles are offered here.
     """
     normalized = prefix.strip().lower()
@@ -860,7 +860,7 @@ def build_repl_slash_completer() -> Any:
 
     The ``/`` menu offers the classic REPL's built-in commands (``/config``,
     ``/language``) followed by skills. The Textual TUI's other slash commands
-    (``/mode`` etc.) are still excluded — they have no handler here.
+    (``/mode`` etc.) are still excluded - they have no handler here.
     """
     from prompt_toolkit.completion import Completer, Completion
 
@@ -936,10 +936,10 @@ class ReplSlashResult:
     """Outcome of dispatching a ``/`` line in the classic REPL.
 
     ``kind`` is one of:
-    - ``"run"``     — feed ``text`` to the agent as a natural-language prompt.
-    - ``"message"`` — print ``text`` and keep looping.
-    - ``"target"``  — set the REPL target to ``value`` (restore behaviour), then loop.
-    - ``"command"`` — run built-in command ``value`` with arguments ``text``.
+    - ``"run"``     - feed ``text`` to the agent as a natural-language prompt.
+    - ``"message"`` - print ``text`` and keep looping.
+    - ``"target"``  - set the REPL target to ``value`` (restore behaviour), then loop.
+    - ``"command"`` - run built-in command ``value`` with arguments ``text``.
     """
 
     kind: Literal["run", "message", "target", "command"]

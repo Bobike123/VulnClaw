@@ -1,6 +1,6 @@
 ---
 name: ctf-crypto
-description: CTF密码学攻击知识库 — RSA攻击（小指数/共模/Wiener/Coppersmith）、AES攻击（Padding Oracle/ECB字节翻转/GCM nonce重用）、ECC攻击、LFSR/LCG/PRNG攻击、古典密码、LWE格攻击
+description: CTF密码学攻击知识库 - RSA攻击（小指数/共模/Wiener/Coppersmith）、AES攻击（Padding Oracle/ECB字节翻转/GCM nonce重用）、ECC攻击、LFSR/LCG/PRNG攻击、古典密码、LWE格攻击
 ---
 
 # CTF 密码学攻击知识库
@@ -13,9 +13,9 @@ description: CTF密码学攻击知识库 — RSA攻击（小指数/共模/Wiener
 
 ## 核心原则
 
-1. **先识别加密体系** — 看密钥长度、加密模式、已知量，确定攻击方向
-2. **工具验证** — 使用 `python_execute` 执行攻击代码，用 `crypto_decode` 做辅助编解码
-3. **参数敏感** — 密码学攻击对参数极其敏感，必须精确计算
+1. **先识别加密体系** - 看密钥长度、加密模式、已知量，确定攻击方向
+2. **工具验证** - 使用 `python_execute` 执行攻击代码，用 `crypto_decode` 做辅助编解码
+3. **参数敏感** - 密码学攻击对参数极其敏感，必须精确计算
 
 ## 场景路由
 

@@ -1,4 +1,4 @@
-"""VulnClaw MCP lifecycle robustness tests — restart, health, graceful stop."""
+"""VulnClaw MCP lifecycle robustness tests - restart, health, graceful stop."""
 
 from __future__ import annotations
 
@@ -565,7 +565,7 @@ class TestSseMcp:
 # ── stdio cross-task shutdown noise (issue #81) ──────────────────────
 
 # A minimal real stdio MCP server. Run via `python -c <src>` so the test needs
-# no external package manager (npx/uvx) — only the `mcp` package itself.
+# no external package manager (npx/uvx) - only the `mcp` package itself.
 _ECHO_STDIO_SERVER_SRC = """
 import anyio
 from mcp.server.lowlevel import Server

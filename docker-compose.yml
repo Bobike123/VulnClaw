@@ -7,12 +7,12 @@ services:
     container_name: vulnclaw
     # LLM credentials and overrides come from .env (see .env.example).
     # Marked optional so `docker compose up` still works before you create
-    # one — you can also pass VULNCLAW_LLM_* via the shell environment.
+    # one - you can also pass VULNCLAW_LLM_* via the shell environment.
     env_file:
       - path: .env
         required: false
     ports:
-      # host:container — change the host side to expose elsewhere.
+      # host:container - change the host side to expose elsewhere.
       - "127.0.0.1:7788:7788"
     volumes:
       # Persist config, sessions, targets and reports across restarts.

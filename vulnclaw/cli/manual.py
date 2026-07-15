@@ -106,8 +106,8 @@ COMMANDS: tuple[ManualTopic, ...] = (
         ),
         notes=(
             "Requires configured LLM credentials (llm.api_key or auth_mode) before the task starts.",
-            "By default (session.engine=solve) this runs the goal-driven solve loop — no fixed round "
-            "count, bounded by session.solve_max_steps/solve_max_intents/solve_max_tool_rounds — and "
+            "By default (session.engine=solve) this runs the goal-driven solve loop - no fixed round "
+            "count, bounded by session.solve_max_steps/solve_max_intents/solve_max_tool_rounds - and "
             "stops when the exploration frontier is exhausted, same underlying engine as `vulnclaw "
             "solve`. Set session.engine=rounds to use the legacy fixed-round auto_pentest loop "
             "instead (bounded by session.max_rounds).",

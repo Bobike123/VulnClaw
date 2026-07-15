@@ -69,7 +69,7 @@ def intel_tool_schemas() -> list[dict[str, Any]]:
                     "Run OSINT reconnaissance on a domain: subdomain enumeration "
                     "(Certificate Transparency), DNS records, WHOIS/RDAP, web "
                     "technology fingerprinting, and common-email candidates. "
-                    "Active recon — contacts the target and third-party services."
+                    "Active recon - contacts the target and third-party services."
                 ),
                 "parameters": {
                     "type": "object",
@@ -103,7 +103,7 @@ def intel_tool_schemas() -> list[dict[str, Any]]:
                 "description": (
                     "Build a network topology (hosts, ports, services, subnets) "
                     "from nmap (text or XML) or masscan scan output. Offline/read-only "
-                    "— parses scan text you already have. Returns markdown, ascii, or json."
+                    "- parses scan text you already have. Returns markdown, ascii, or json."
                 ),
                 "parameters": {
                     "type": "object",

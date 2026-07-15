@@ -216,12 +216,12 @@ def extract_user_vuln_hint(user_input: str) -> str:
     vuln_str = "/".join(found_vulns[:3])
     if target:
         return (
-            f"[Explicit user hint — Round 1]\n"
+            f"[Explicit user hint - Round 1]\n"
             f"The user explicitly told you that [{target}] has a [{vuln_str}] vulnerability.\n"
             f"\n"
             f"→ You must immediately construct and send a PoC test request!\n"
             f"→ Use the fetch tool to send the request directly and observe the real response!\n"
-            f"→ Do not explore paths or do recon first — test the vulnerability directly!\n"
+            f"→ Do not explore paths or do recon first - test the vulnerability directly!\n"
             f"\n"
             f"{get_payload_examples(found_vulns, target)}"
         )

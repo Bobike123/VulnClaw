@@ -1,4 +1,4 @@
-"""VulnClaw configuration schema — Pydantic models for type-safe config."""
+"""VulnClaw configuration schema - Pydantic models for type-safe config."""
 
 from __future__ import annotations
 
@@ -223,7 +223,7 @@ class ReconConfig(BaseModel):
     """Information-gathering configuration: space-mapping API keys + recon knobs.
 
     Keys are read here OR from environment variables (FOFA_KEY, HUNTER_KEY,
-    QUAKE_KEY, ZOOMEYE_KEY, SHODAN_KEY, ZEROZONE_KEY) — never hard-coded. Put real
+    QUAKE_KEY, ZOOMEYE_KEY, SHODAN_KEY, ZEROZONE_KEY) - never hard-coded. Put real
     keys in ~/.vulnclaw/config.yaml (gitignored), not in source.
     """
 
@@ -332,7 +332,7 @@ class ScopeConfig(BaseModel):
     enforce: bool = Field(
         default=True,
         description="Enforce scope on every target-directed network action. "
-        "Disabling this removes the central authorization boundary — not recommended.",
+        "Disabling this removes the central authorization boundary - not recommended.",
     )
     scope_file: str = Field(
         default="",
@@ -391,7 +391,7 @@ class ApprovalConfig(BaseModel):
         default="non-interactive",
         description="Approval mode: interactive (prompt on a TTY), non-interactive "
         "(require a matching entry in the approval file), or dry-run (never execute "
-        "risky actions — explain what would happen instead).",
+        "risky actions - explain what would happen instead).",
     )
     approval_file: str = Field(
         default="",
@@ -445,7 +445,7 @@ class BudgetConfig(BaseModel):
     """Safety budgets and emergency stop for persistent (open-ended) autonomous runs.
 
     All ceilings are opt-in: a value of 0 means unlimited for that dimension. The
-    emergency-stop file is a kill switch — creating it halts the run at the next
+    emergency-stop file is a kill switch - creating it halts the run at the next
     checkpoint regardless of the other limits (and even when ``enabled`` is off).
     """
 

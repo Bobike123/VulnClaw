@@ -1,14 +1,14 @@
 """Findings risk scoring & assessment diff for VulnClaw.
 
 Ports the *logic* of HackBot's ``vulndb.py`` (risk scoring) and ``diff_report.py``
-(assessment diff) — but with no second database. Everything operates on plain
+(assessment diff) - but with no second database. Everything operates on plain
 VulnClaw finding dicts and ``target_state`` snapshot dicts, so the canonical
 store stays the single source of truth (spec §5.2).
 
 Exposes two read-only tools:
-  * ``findings_report`` — risk score, severity breakdown, top risks, optional
+  * ``findings_report`` - risk score, severity breakdown, top risks, optional
     compliance-control coverage for the current/given findings.
-  * ``findings_diff`` — new / fixed / persistent findings between two finding
+  * ``findings_diff`` - new / fixed / persistent findings between two finding
     sets (e.g. a baseline snapshot vs the current assessment).
 """
 
@@ -291,7 +291,7 @@ def format_diff(report: DiffReport) -> str:
         for e in entries:
             row = f"| {e.severity} | {e.title[:80]} |"
             if show_change:
-                row += f" {e.old_severity + ' → ' + e.severity if e.old_severity else '—'} |"
+                row += f" {e.old_severity + ' → ' + e.severity if e.old_severity else '-'} |"
             lines.append(row)
         lines.append("")
 

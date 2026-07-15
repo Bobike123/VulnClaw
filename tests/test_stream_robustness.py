@@ -3,7 +3,7 @@
 覆盖：
 - 跨 chunk 分片的 tool_calls 组装（index 对齐、arguments 拼接）
 - function name / arguments 分别在不同 chunk 到达
-- 仅含 id 的首个分片（function 字段为 None）—— provider 差异
+- 仅含 id 的首个分片（function 字段为 None）-- provider 差异
 - 空 delta / None tc_delta / 缺失 index 的边界
 - 不完整 tool_call（截断 JSON / 缺失 id / 缺失 name）被丢弃
 - 中途断开时已收 content 的保留
@@ -359,7 +359,7 @@ class TestStreamEndToEnd:
     async def test_partial_content_preserved_on_disconnect(self):
         """流式中途抛 ConnectionError 时，应回退到非流式（fallback）路径。
 
-        断开属于非 streaming-marker 异常，按现有逻辑应重新抛出 —— 验证
+        断开属于非 streaming-marker 异常，按现有逻辑应重新抛出 -- 验证
         已收到的 content 不会引发额外的 sink 重复输出。
         """
         agent, mock_client = _make_agent()

@@ -1,4 +1,4 @@
-"""🦞 VulnClaw — AI-powered penetration testing CLI tool."""
+"""🦞 VulnClaw - AI-powered penetration testing CLI tool."""
 
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path

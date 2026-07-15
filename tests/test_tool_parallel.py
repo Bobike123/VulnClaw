@@ -200,7 +200,7 @@ async def test_mcp_tool_executed_exactly_once_per_call():
     results, _ = await handle_tool_calls_with_results(_McpAgent(), message)
 
     assert len(results) == 3
-    # Exactly one execution per tool call — not double.
+    # Exactly one execution per tool call - not double.
     assert mcp.calls == 3
 
 
@@ -210,7 +210,7 @@ async def test_missing_config_defaults_to_parallel():
         await asyncio.sleep(0.05)
         return f"ran:{func_args['n']}"
 
-    # Agent without a config attribute at all — should still parallelize.
+    # Agent without a config attribute at all - should still parallelize.
     class _BareAgent:
         mcp_manager = None
 

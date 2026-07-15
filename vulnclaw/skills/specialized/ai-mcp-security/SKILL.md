@@ -1,6 +1,6 @@
 ---
 name: ai-mcp-security
-description: AI与MCP安全评估 — Prompt注入、工具滥用、MCP信任边界、Agent权限逃逸、数据泄露、模型风险、GAARM风险矩阵
+description: AI与MCP安全评估 - Prompt注入、工具滥用、MCP信任边界、Agent权限逃逸、数据泄露、模型风险、GAARM风险矩阵
 ---
 
 # AI 与 MCP 安全评估 Skill
@@ -61,10 +61,10 @@ description: AI与MCP安全评估 — Prompt注入、工具滥用、MCP信任边
 
 ## 参考文档
 
-- `references/04-ai-and-mcp-security-integrated.md` — AI 与 MCP 安全整合参考
-- `references/ai-app-security.md` — AI 应用安全
-- `references/ai-identity-security.md` — AI 身份安全
-- `references/ai-data-security.md` — AI 数据安全
-- `references/ai-baseline-security.md` — AI 基线安全
-- `references/ai-model-security.md` — AI 模型安全
-- `references/gaarm-risk-matrix.md` — GAARM 风险矩阵
+- `references/04-ai-and-mcp-security-integrated.md` - AI 与 MCP 安全整合参考
+- `references/ai-app-security.md` - AI 应用安全
+- `references/ai-identity-security.md` - AI 身份安全
+- `references/ai-data-security.md` - AI 数据安全
+- `references/ai-baseline-security.md` - AI 基线安全
+- `references/ai-model-security.md` - AI 模型安全
+- `references/gaarm-risk-matrix.md` - GAARM 风险矩阵

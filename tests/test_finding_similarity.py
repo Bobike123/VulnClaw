@@ -1,4 +1,4 @@
-"""VulnClaw Finding Similarity Tests — semantic deduplication module."""
+"""VulnClaw Finding Similarity Tests - semantic deduplication module."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ class TestUrlSimilarity:
         assert url_similarity(u, u) == 1.0
 
     def test_same_path_different_query_value(self):
-        # 相同 host/path/参数名，仅参数值不同 — 应判定为同一接口（=1.0）
+        # 相同 host/path/参数名，仅参数值不同 - 应判定为同一接口（=1.0）
         a = "https://t.com/api/user?id=1"
         b = "https://t.com/api/user?id=999"
         assert url_similarity(a, b) == 1.0

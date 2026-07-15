@@ -27,7 +27,7 @@ function resolveInitialLang(): Lang {
 }
 
 /**
- * 全局翻译函数 — 可在 React 组件之外调用。
+ * 全局翻译函数 - 可在 React 组件之外调用。
  *   t("key")                -> 翻译文本
  *   t("key", {a:"1"})       -> 替换 {a} 占位符
  *   t("key", {}, "fallback") -> key 不存在时使用 fallback
@@ -63,7 +63,7 @@ const I18nContext = createContext<I18nContextValue>({
 });
 
 /**
- * React Hook — 组件使用 `const { t, lang } = useT()` 获取翻译函数。
+ * React Hook - 组件使用 `const { t, lang } = useT()` 获取翻译函数。
  * 当语言切换时自动触发重渲染。
  */
 export function useT(): I18nContextValue {
@@ -71,7 +71,7 @@ export function useT(): I18nContextValue {
 }
 
 /**
- * I18nProvider — 在 main.tsx 中包裹 <App />。
+ * I18nProvider - 在 main.tsx 中包裹 <App />。
  * 监听 preferences 变化，语言切换时更新 Context 和全局单例。
  */
 export function I18nProvider({ children }: { children: ReactNode }) {

@@ -458,7 +458,7 @@ async def whois_lookup(
 async def common_emails(domain: str) -> list[str]:
     """Generate common-prefix emails when the domain has MX records.
 
-    Note: HackBot's search-engine scraping is intentionally dropped — it was
+    Note: HackBot's search-engine scraping is intentionally dropped - it was
     unreliable and ToS-fragile. This yields deterministic, low-noise candidates.
     """
     domain = clean_domain(domain)
@@ -621,7 +621,7 @@ def format_report(report: OSINTReport) -> str:
         lines.append("| Subdomain | IP | Source |")
         lines.append("|-----------|-----|--------|")
         for s in report.subdomains[:50]:
-            lines.append(f"| {s.subdomain} | {s.ip or '—'} | {s.source} |")
+            lines.append(f"| {s.subdomain} | {s.ip or '-'} | {s.source} |")
         if len(report.subdomains) > 50:
             lines.append(f"\n_...and {len(report.subdomains) - 50} more_")
         lines.append("")

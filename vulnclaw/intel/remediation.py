@@ -5,10 +5,10 @@ Ported from HackBot (``hackbot/core/remediation.py``). For each finding,
 auto-generate actionable fix commands, configuration patches, and code
 snippets from a built-in rule knowledge base. Works in two modes:
 
-1. **Rule-based** — instant remediation from a built-in knowledge base of
+1. **Rule-based** - instant remediation from a built-in knowledge base of
    vulnerability patterns (no API key required). This is the path used by the
    ``remediation_advice`` tool.
-2. **AI-enhanced** — optional; uses a passed-in engine to generate tailored
+2. **AI-enhanced** - optional; uses a passed-in engine to generate tailored
    fixes. Not used by the agent tool (the agent itself is the LLM).
 
 Each remediation contains:
@@ -217,10 +217,10 @@ def _remediate_sqli(finding: Dict, match) -> Remediation:
                 title="Use parameterized queries (Python)",
                 language="python",
                 description="Replace string concatenation with parameterized queries.",
-                content="""# VULNERABLE — never do this:
+                content="""# VULNERABLE - never do this:
 # cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
 
-# SECURE — use parameterized queries:
+# SECURE - use parameterized queries:
 cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
 
 # Or use an ORM (SQLAlchemy):
@@ -235,7 +235,7 @@ user = session.query(User).filter(User.id == user_id).first()""",
 // VULNERABLE:
 // $stmt = $pdo->query("SELECT * FROM users WHERE id = " . $_GET['id']);
 
-// SECURE — use prepared statements:
+// SECURE - use prepared statements:
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");
 $stmt->execute(['id' => $_GET['id']]);
 $user = $stmt->fetch();""",
@@ -245,7 +245,7 @@ $user = $stmt->fetch();""",
                 title="Use parameterized queries (Java)",
                 language="java",
                 description="Use PreparedStatement instead of Statement.",
-                content="""// SECURE — PreparedStatement
+                content="""// SECURE - PreparedStatement
 PreparedStatement ps = conn.prepareStatement(
     "SELECT * FROM users WHERE id = ?");
 ps.setInt(1, userId);
@@ -300,7 +300,7 @@ add_header X-XSS-Protection "1; mode=block" always;""",
 
 # In Jinja2 templates, autoescaping is on by default:
 #   {{ user_input }}          ← auto-escaped
-#   {{ user_input | safe }}   ← DANGEROUS — avoid unless trusted
+#   {{ user_input | safe }}   ← DANGEROUS - avoid unless trusted
 
 # In Python code:
 safe_output = escape(user_input)""",
@@ -313,7 +313,7 @@ safe_output = escape(user_input)""",
                 content="""// VULNERABLE:
 // element.innerHTML = userData;
 
-// SECURE — use textContent:
+// SECURE - use textContent:
 element.textContent = userData;
 
 // If HTML is needed, use a sanitizer:
@@ -349,7 +349,7 @@ def _remediate_cmd_injection(finding: Dict, match) -> Remediation:
 # os.system(f"ping {user_input}")
 # subprocess.call(f"ping {user_input}", shell=True)
 
-# SECURE — use list arguments without shell=True:
+# SECURE - use list arguments without shell=True:
 result = subprocess.run(
     ["ping", "-c", "4", validated_host],
     capture_output=True, text=True, timeout=10
@@ -813,10 +813,10 @@ TraceEnable Off""",
                 type=RemediationType.COMMAND,
                 title="Disable directory listing",
                 language="bash",
-                content="""# Nginx — remove autoindex
+                content="""# Nginx - remove autoindex
 # autoindex off;  (default, but ensure it's not 'on')
 
-# Apache — remove Indexes option
+# Apache - remove Indexes option
 sudo sed -i 's/Options Indexes/Options -Indexes/' /etc/apache2/apache2.conf
 sudo systemctl reload apache2""",
             ),
@@ -869,7 +869,7 @@ sudo dnf update <package>""",
                 type=RemediationType.COMMAND,
                 title="Enable automatic security updates",
                 language="bash",
-                content="""# Debian/Ubuntu — enable unattended upgrades
+                content="""# Debian/Ubuntu - enable unattended upgrades
 sudo apt install unattended-upgrades -y
 sudo dpkg-reconfigure -plow unattended-upgrades""",
             ),
@@ -1273,11 +1273,11 @@ location ~ ^/(admin|phpmyadmin|wp-admin|debug|server-status|server-info) {
                 type=RemediationType.COMMAND,
                 title="Disable debug mode",
                 language="bash",
-                content="""# Django — set in settings.py or env:
+                content="""# Django - set in settings.py or env:
 # DEBUG = False
 # ALLOWED_HOSTS = ['yourdomain.com']
 
-# Flask — never run with debug in production:
+# Flask - never run with debug in production:
 # app.run(debug=False)
 
 # Remove phpinfo files:
@@ -1313,9 +1313,9 @@ class RemediationEngine:
     Generates remediation guidance for security findings.
 
     Two strategies:
-    1. Rule-based (instant, no API) — matches finding title/description
+    1. Rule-based (instant, no API) - matches finding title/description
        against built-in vulnerability patterns.
-    2. AI-enhanced (optional) — Falls back to an LLM for tailored fixes
+    2. AI-enhanced (optional) - Falls back to an LLM for tailored fixes
        when no rule matches or when --ai flag is used.
     """
 
@@ -1426,7 +1426,7 @@ REFERENCES:
 - <relevant URL 1>
 - <relevant URL 2>
 
-Include at least one COMMAND and one CODE or CONFIG section. Be specific to the actual finding — don't give generic advice. Use real file paths and real commands."""
+Include at least one COMMAND and one CODE or CONFIG section. Be specific to the actual finding - don't give generic advice. Use real file paths and real commands."""
 
     @staticmethod
     def _parse_ai_response(finding: Dict[str, Any], response: str) -> Remediation:

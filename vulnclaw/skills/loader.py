@@ -1,4 +1,4 @@
-"""VulnClaw Skill Loader — load and parse Skill definition files.
+"""VulnClaw Skill Loader - load and parse Skill definition files.
 
 Supports two Skill formats:
 - Directory format: <skill_name>/SKILL.md + <skill_name>/references/

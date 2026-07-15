@@ -75,8 +75,8 @@ def fetch_models(request: ProviderModelsRequest) -> ProviderModelsResponse:
     """List models for a provider/base URL using the saved API key.
 
     The key is read from the saved config (never accepted from the browser),
-    and is only ever sent to the saved base_url or a known provider preset —
-    never to an arbitrary client-supplied host — to avoid SSRF-style key
+    and is only ever sent to the saved base_url or a known provider preset -
+    never to an arbitrary client-supplied host - to avoid SSRF-style key
     exfiltration via a spoofed base_url.
     Returns an empty list with a hint when no key is configured.
     """

@@ -1,4 +1,4 @@
-"""VulnClaw MCP Router — route natural language intents to MCP tool calls."""
+"""VulnClaw MCP Router - route natural language intents to MCP tool calls."""
 
 from __future__ import annotations
 

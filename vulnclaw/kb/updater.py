@@ -1,4 +1,4 @@
-"""VulnClaw Knowledge Updater — update and seed the knowledge base."""
+"""VulnClaw Knowledge Updater - update and seed the knowledge base."""
 
 from __future__ import annotations
 

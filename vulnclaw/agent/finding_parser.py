@@ -98,7 +98,7 @@ class FindingParser:
         for pattern, severity in severity_patterns:
             for match in re.findall(pattern, response):
                 title = match.strip()
-                title = re.sub(r"\*+", "", title).strip(" -—–")
+                title = re.sub(r"\*+", "", title).strip(" --–")
                 if title and title not in existing_titles:
                     self.context.state.add_finding(
                         VulnerabilityFinding(

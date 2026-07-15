@@ -1,4 +1,4 @@
-"""VulnClaw Skill Dispatcher — match user intents to appropriate Skills."""
+"""VulnClaw Skill Dispatcher - match user intents to appropriate Skills."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ SKILL_INTENT_MAP: dict[str, list[str]] = {
     "后渗透|post-exploitation": ["post-exploitation"],
     "报告|report|生成报告": ["reporting"],
     "绕过waf|waf绕过|waf bypass": ["waf-bypass"],
-    # Specialized skills — original
+    # Specialized skills - original
     "web渗透|web测试|网站测试": ["web-pentest"],
     "安卓|android|apk|app测试": ["android-pentest"],
-    # Specialized skills — from Sec-Skill
+    # Specialized skills - from Sec-Skill
     "逆向|reverse|签名恢复|burp重放|js签名|客户端逆向|请求链|重放|签名": ["client-reverse"],
     "抓包|packet|frida|jadx|hook|ssl pinning|scrcpy": ["client-reverse"],
     "浏览器签名|反爬|antibot|token生成|cookie跳转": ["client-reverse"],
@@ -68,12 +68,12 @@ SKILL_INTENT_MAP: dict[str, list[str]] = {
     "bashjail|bash沙箱|restricted shell|rbash逃逸": ["ctf-misc"],
     "编码链|多层编码|杂项|misc|隐写|stego": ["ctf-misc"],
     "ctfd|夺旗平台|flag提交|题目下载": ["ctf-misc"],
-    # ── OSINT specialized skill — refined routing ───────────────────
+    # ── OSINT specialized skill - refined routing ───────────────────
     # osint-recon: Full-dimension recon (OSINT + social engineering)
     # Triggered only when user explicitly mentions social engineering / OSINT / author tracking
     "社会工程|社工|作者追踪|人物追踪|目标画像|人物画像": ["osint-recon"],
     "跨平台|用户名搜索|身份关联|github追踪|bilibili追踪": ["osint-recon"],
-    # Full/deep recon — trigger osint-recon for comprehensive 4-dimension collection
+    # Full/deep recon - trigger osint-recon for comprehensive 4-dimension collection
     "全面侦察|深度侦察|完整信息收集|全面信息收集|深度收集|搜集基础信息": ["osint-recon"],
 }
 

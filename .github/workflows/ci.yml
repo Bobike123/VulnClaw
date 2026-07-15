@@ -44,9 +44,35 @@ jobs:
       - name: Ruff
         run: ruff check vulnclaw tests
 
+      # Advisory type check: ~125 pre-existing findings, so non-blocking for now
+      # (continue-on-error). Runs once on the baseline combo, not the whole matrix.
+      - name: Mypy (advisory)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        continue-on-error: true
+        run: mypy vulnclaw
+
       - name: Frontend typecheck
         working-directory: frontend
         run: npx tsc -b
 
+      # Coverage gate (blocking) - enforced only on the baseline platform where the
+      # 72% baseline was measured, to avoid cross-platform coverage drift breaking CI.
+      - name: Pytest with coverage gate
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: pytest -q --cov=vulnclaw --cov-report=term-missing
+
       - name: Pytest
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') }}
         run: pytest -q
+
+      # Security scans (advisory) - VulnClaw's own source and its dependency tree.
+      # bandit uses the tuned skip list in pyproject; pip-audit flags dep CVEs.
+      - name: Bandit security scan (advisory)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        continue-on-error: true
+        run: bandit -c pyproject.toml -r vulnclaw -q
+
+      - name: pip-audit dependency scan (advisory)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        continue-on-error: true
+        run: pip-audit --desc

@@ -1237,7 +1237,7 @@ class TestClassicReplSlashPalette:
         import vulnclaw.cli.tui as tui_mod
         from vulnclaw.i18n import init_i18n
 
-        skill = {"name": "recon", "description": "信息收集流程 — 被动+主动侦察"}
+        skill = {"name": "recon", "description": "信息收集流程 - 被动+主动侦察"}
         try:
             init_i18n(lang="en")
             english = tui_mod.skill_display_description(skill)
@@ -1247,8 +1247,8 @@ class TestClassicReplSlashPalette:
             init_i18n()  # restore auto-detected default
 
         # English catalog override applies; zh falls back to the frontmatter.
-        assert english == "Reconnaissance workflow — passive and active recon"
-        assert chinese == "信息收集流程 — 被动+主动侦察"
+        assert english == "Reconnaissance workflow - passive and active recon"
+        assert chinese == "信息收集流程 - 被动+主动侦察"
 
     def test_skill_description_falls_back_when_untranslated(self):
         import vulnclaw.cli.tui as tui_mod

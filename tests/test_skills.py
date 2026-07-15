@@ -1,4 +1,4 @@
-"""VulnClaw Skill Module Tests — loader.py + dispatcher.py"""
+"""VulnClaw Skill Module Tests - loader.py + dispatcher.py"""
 
 
 # ── loader.py ────────────────────────────────────────────────────────

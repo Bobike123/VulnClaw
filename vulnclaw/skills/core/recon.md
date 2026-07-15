@@ -1,6 +1,6 @@
 ---
 name: recon
-description: 信息收集流程 — 被动+主动侦察
+description: 信息收集流程 - 被动+主动侦察
 ---
 
 # 信息收集 Skill

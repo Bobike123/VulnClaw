@@ -364,7 +364,7 @@ class SecondaryPopup(Vertical):
         Completes the loading prompt, triggers the callback, then shows
         the next prompt (model choice or fallback input).
         """
-        # Complete the loading — this calls on_models_loaded(models)
+        # Complete the loading - this calls on_models_loaded(models)
         # and then _on_done (which is _post_popup_refresh)
         self.complete_loading(models)
 
@@ -497,7 +497,7 @@ class SecondaryPopup(Vertical):
                 event.stop()
                 self._cancel()
         elif self._ptype == "loading":
-            # Loading cannot be cancelled by user — ignore all keys
+            # Loading cannot be cancelled by user - ignore all keys
             event.stop()
         elif event.key == "escape":
             event.stop()
@@ -722,7 +722,7 @@ def _apply_language_textual(session: dict[str, Any], lang: str) -> None:
 @_register_handler("language")
 @_register_handler("lang")
 def _h_language(session: dict[str, Any], args: str) -> str | None:
-    """Handle /language command — switch UI language at runtime.
+    """Handle /language command - switch UI language at runtime.
 
     /language         → popup with three choices (auto/zh/en)
     /language zh      → direct switch to Chinese

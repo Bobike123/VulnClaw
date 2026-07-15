@@ -1,4 +1,4 @@
-"""VulnClaw MCP Module Tests — registry.py + router.py + lifecycle.py"""
+"""VulnClaw MCP Module Tests - registry.py + router.py + lifecycle.py"""
 
 from unittest.mock import AsyncMock, MagicMock
 

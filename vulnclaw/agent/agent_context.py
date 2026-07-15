@@ -7,7 +7,7 @@ which hid the real contract and let the seam leak. :class:`AgentContext` names
 that contract exactly: the members those helpers actually touch, and nothing
 more.
 
-The protocol is deliberately faithful to the surface as it stands today —
+The protocol is deliberately faithful to the surface as it stands today -
 including the underscore-prefixed callbacks (``_get_client``,
 ``_execute_mcp_tool`` …) that helpers still lean on. Those are internal agent
 machinery a helper reaches back into; typing them honestly documents the
@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_che
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     from vulnclaw.agent.context import ContextManager, PentestPhase, SessionState
     from vulnclaw.agent.finding_parser import FindingParser
     from vulnclaw.agent.llm_client import StreamSink
@@ -43,7 +44,7 @@ class AgentContext(Protocol):
     Any object passed to a helper as ``agent`` is expected to satisfy this
     protocol. :class:`~vulnclaw.agent.core.AgentCore` satisfies it structurally;
     a ``test_agent_context_protocol`` conformance test guards against drift.
-    Focused test doubles are intentionally *not* required to conform — they may
+    Focused test doubles are intentionally *not* required to conform - they may
     implement only the slice their unit under test exercises.
     """
 

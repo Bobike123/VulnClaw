@@ -81,7 +81,7 @@ def test_extract_from_js_infers_rest_crud_from_base_and_entity():
 
 
 def test_extract_from_js_discovers_dynamic_entities():
-    """PascalCase 实体名动态提取——不依赖硬编码实体列表。"""
+    """PascalCase 实体名动态提取--不依赖硬编码实体列表。"""
     content = """
         var base = "/smweb/rest";
         url: "AppRoleService";
@@ -228,7 +228,7 @@ async def test_unauth_test_skips_destructive_and_flags_data(monkeypatch):
         return _Resp(text="nope", status=404)
 
     monkeypatch.setattr(recon_tools, "_make_client", lambda cfg: _FakeClient(router))
-    # patch content-type via header — _FakeClient returns _Resp; add headers attr
+    # patch content-type via header - _FakeClient returns _Resp; add headers attr
     agent = _agent(ReconConfig())
     res = await recon_tools.execute_unauth_test(agent, {
         "base_url": "http://t.example.com",

@@ -83,11 +83,11 @@ _BASE_PATH_RE = re.compile(
 )
 _SCRIPT_SRC_RE = re.compile(r"""<script[^>]+src=["']?([^"'\s>]+)""", re.IGNORECASE)
 
-# CRUD 动词模板——与 base path 和 JS 中出现的实体名排列组合
+# CRUD 动词模板--与 base path 和 JS 中出现的实体名排列组合
 _CRUD_VERBS = ("list", "get", "save", "add", "delete", "update", "detail", "query",
                "info", "export", "tree", "page", "count", "all", "search")
 # 动态实体名提取：从 JS 中找所有 PascalCase 标识符（首字母大写、2+ 字母），
-# 而非硬编码实体列表——任何业务实体都能被捕获
+# 而非硬编码实体列表--任何业务实体都能被捕获
 _PASCAL_CASE_RE = re.compile(
     r"""(?P<q>["'`])(?P<v>[A-Z][a-zA-Z0-9]{1,30}(?:[A-Z][a-zA-Z0-9]*)*)(?P=q)"""
 )
@@ -318,7 +318,7 @@ async def execute_space_search(agent: AgentContext, args: dict[str, Any]) -> str
     if invalid:
         return f"[!] Unsupported engine: {', '.join(invalid)}; choices: {', '.join(_ENGINES)}, all"
 
-    out: list[str] = [f"# Asset search — {'/'.join(engines)}  query={query or domain}"]
+    out: list[str] = [f"# Asset search - {'/'.join(engines)}  query={query or domain}"]
     try:
         async with _make_client(cfg) as client:
             async def run(eng: str) -> tuple[str, list[dict], str]:
@@ -410,7 +410,7 @@ async def execute_subdomain_enum(agent: AgentContext, args: dict[str, Any]) -> s
         notes.append(f"DNS brute-force wordlist: {len(_SUBDOMAIN_BRUTE)} entries")
 
     subs = sorted(found)
-    head = [f"# Subdomain enumeration — {domain}  {len(subs)} total", "  " + "; ".join(notes)]
+    head = [f"# Subdomain enumeration - {domain}  {len(subs)} total", "  " + "; ".join(notes)]
     return "\n".join(head + [f"  {s}" for s in subs]) if subs else "\n".join(head + ["  (no subdomains found)"])
 
 
@@ -428,9 +428,9 @@ def extract_from_js(content: str, base_host: str = "") -> dict[str, list[str]]:
     """Extract urls / paths / domains / secrets from HTML/JS text (pure function, easy to test).
 
     Key improvements (inspired by URLFinder):
-    1. Broad path matching — any quoted /xxx/yyy is extracted, not limited to a keyword allowlist.
-    2. Short-fragment extraction — CRUD fragments that don't start with / (like "User/list") are also captured.
-    3. base path + entity name + CRUD verb combinatorial inference — even if the JS only contains
+    1. Broad path matching - any quoted /xxx/yyy is extracted, not limited to a keyword allowlist.
+    2. Short-fragment extraction - CRUD fragments that don't start with / (like "User/list") are also captured.
+    3. base path + entity name + CRUD verb combinatorial inference - even if the JS only contains
        "/jalis/rest" and "User", it can infer implied endpoints like /jalis/rest/User/list.
     """
     urls = _URL_RE.findall(content)
@@ -487,14 +487,14 @@ def extract_from_js(content: str, base_host: str = "") -> dict[str, list[str]]:
         base_root = ".".join(base_host.split(".")[-2:])
         domains = [d for d in domains if base_root in d] + [d for d in domains if base_root not in d]
     # Discovered secrets are sensitive evidence: store only the type and a
-    # non-reversible fingerprint — never the raw value. Do not test/use the key.
+    # non-reversible fingerprint - never the raw value. Do not test/use the key.
     from vulnclaw.safety.redaction import fingerprint
 
     secrets: list[str] = []
     for label, pat in _SECRET_PATTERNS:
         for m in pat.finditer(content):
             secrets.append(
-                f"{label} (fingerprint={fingerprint(m.group(0))}; value redacted — rotate/remove)"
+                f"{label} (fingerprint={fingerprint(m.group(0))}; value redacted - rotate/remove)"
             )
     return {
         "urls": _dedup_cap(urls, 200),
@@ -556,7 +556,7 @@ async def execute_js_recon(agent: AgentContext, args: dict[str, Any]) -> str:
     for k in agg:
         agg[k] = _dedup_cap(agg[k], 200 if k != "secrets" else 50)
 
-    out = [f"# JavaScript recon — {url}  (fetched {fetched} JS files)"]
+    out = [f"# JavaScript recon - {url}  (fetched {fetched} JS files)"]
 
     # 关键发现提前：敏感信息和未授权探测结果放最前面，减少被截断后 LLM 反复重调
     if agg["secrets"]:
@@ -632,7 +632,7 @@ def _classify_unauth(status: int, body: str, ctype: str) -> tuple[str, bool]:
     if status in (301, 302, 307, 308):
         return "↪ redirect (likely login)", False
     if status == 404:
-        return "— not found", False
+        return "- not found", False
     if status == 405:
         return "· method not allowed", False
     if status == 200:
@@ -755,7 +755,7 @@ async def execute_unauth_test(agent: AgentContext, args: dict[str, Any]) -> str:
         return f"[!] unauth_test execution error: {e}"
 
     leads = [r for r in rows if r.get("lead")]
-    out = [f"# Unauthorized-access probe — {host}  probed {len(rows)} endpoints, {len(leads)} leads"]
+    out = [f"# Unauthorized-access probe - {host}  probed {len(rows)} endpoints, {len(leads)} leads"]
     if auth:
         out.append("  (with/without-token differential enabled)")
     for r in rows:
@@ -860,7 +860,7 @@ async def execute_dir_enum(agent: AgentContext, args: dict[str, Any]) -> str:
         return f"[!] dir_enum execution error: {e}"
 
     hits.sort(key=lambda x: (x[0], -x[1]))
-    out = [f"# Directory enumeration — {base}  requested {len(candidates)}, {len(hits)} hits"]
+    out = [f"# Directory enumeration - {base}  requested {len(candidates)}, {len(hits)} hits"]
     if baseline_len is not None:
         out.append(f"  (404 baseline length ≈ {baseline_len})")
     for code, length, path in hits:

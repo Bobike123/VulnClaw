@@ -47,7 +47,11 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
     "ruff>=0.4.0",
+    "mypy>=1.10",
+    "bandit>=1.7",
+    "pip-audit>=2.7",
     "build>=1.2.0",
 ]
 web = [
@@ -119,3 +123,36 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["vulnclaw"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+# Measured baseline was ~72%. Gate a couple of points below it so the suite
+# blocks coverage regressions without being flaky; raise as coverage improves.
+fail_under = 70
+show_missing = true
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+# ~125 pre-existing findings across the legacy surface. mypy runs as an ADVISORY
+# CI step (continue-on-error) so new code stays typed while the backlog is burned
+# down; it is not yet a blocking gate. See CONTRIBUTING for the ratchet plan.
+
+[tool.bandit]
+# VulnClaw is an offensive-security tool, so many bandit patterns are intentional
+# by design. These are skipped so the advisory scan surfaces real issues, not the
+# tool's own reason for existing:
+#   B404/B603/B607  subprocess - runs nmap and other external scanners
+#   B501            requests verify=False - scans targets with self-signed certs
+#   B413            pycryptodome flagged as legacy pyCrypto (it's the maintained fork)
+#   B324            md5/sha1 offered as first-class crypto operations in the skill
+#   B310/B314/B405  urllib / XML parsing of pentest-controlled input
+#   B105            all 7 hits reviewed 2026-07-15: field-name/example false positives
+#   B110            try_except_pass - tracked separately as an error-handling cleanup
+#   B101            assert used (tests only)
+skips = ["B101", "B105", "B110", "B310", "B314", "B324", "B404", "B405", "B413", "B501", "B603", "B607"]
+exclude_dirs = ["tests", ".venv", "frontend", "scripts"]

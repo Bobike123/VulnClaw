@@ -149,7 +149,7 @@ NIST_CONTROLS: list[Control] = [
 OWASP_CONTROLS: list[Control] = [
     Control(Framework.OWASP_TOP_10.value, "A01:2021", "Broken Access Control", "Access control enforces policy such that users cannot act outside their intended permissions.", "Access Control"),
     Control(Framework.OWASP_TOP_10.value, "A02:2021", "Cryptographic Failures", "Failures related to cryptography (or lack thereof) that lead to exposure of sensitive data.", "Cryptography"),
-    Control(Framework.OWASP_TOP_10.value, "A03:2021", "Injection", "SQL, NoSQL, OS, LDAP injection — untrusted data sent to an interpreter.", "Injection"),
+    Control(Framework.OWASP_TOP_10.value, "A03:2021", "Injection", "SQL, NoSQL, OS, LDAP injection - untrusted data sent to an interpreter.", "Injection"),
     Control(Framework.OWASP_TOP_10.value, "A04:2021", "Insecure Design", "Risks related to design and architectural flaws.", "Design"),
     Control(Framework.OWASP_TOP_10.value, "A05:2021", "Security Misconfiguration", "Missing or improper security hardening across the application stack.", "Configuration"),
     Control(Framework.OWASP_TOP_10.value, "A06:2021", "Vulnerable and Outdated Components", "Using components with known vulnerabilities.", "Components"),

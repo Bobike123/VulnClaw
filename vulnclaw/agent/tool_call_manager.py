@@ -62,7 +62,7 @@ async def handle_tool_calls_with_results(
     if skipped_calls:
         for sc in skipped_calls:
             skipped_info.append(
-                f"[skip] {sc['func_name']}({str(sc['func_args'])[:100]}) — round limit reached, continues next round"
+                f"[skip] {sc['func_name']}({str(sc['func_args'])[:100]}) - round limit reached, continues next round"
             )
 
     parallel, max_concurrent = _resolve_parallel_settings(agent)
@@ -130,7 +130,7 @@ def _extract_structured_content(tool_result: Any) -> dict[str, Any] | None:
 async def _execute_single(agent: AgentContext, item: dict[str, Any]) -> dict[str, Any] | None:
     """Execute one tool call with isolated error handling.
 
-    Returns a result dict on success, or ``None`` when the call raised — matching
+    Returns a result dict on success, or ``None`` when the call raised - matching
     the legacy behavior of dropping failed calls from the result set.
     """
     tool_call = item["tool_call"]

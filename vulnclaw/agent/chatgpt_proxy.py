@@ -15,7 +15,7 @@ This module runs a tiny local HTTP server that:
 * translates the answer back into chat-completions shape (including tool calls).
 
 It is started automatically (in-process, background thread) by
-``AgentCore._get_client`` when ``llm.chatgpt_auto_proxy`` is enabled — so users
+``AgentCore._get_client`` when ``llm.chatgpt_auto_proxy`` is enabled - so users
 do not have to install or launch any external proxy.
 
 ⚠️ The ChatGPT backend protocol is undocumented and may change. The endpoint and
@@ -35,7 +35,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-# ── Upstream (ChatGPT backend) configuration — all overridable via env ───
+# ── Upstream (ChatGPT backend) configuration - all overridable via env ───
 DEFAULT_BACKEND_URL = "https://chatgpt.com/backend-api/codex/responses"
 DEFAULT_MODELS_URL = "https://chatgpt.com/backend-api/codex/models"
 DEFAULT_CLIENT_VERSION = "1.0.0"
@@ -65,7 +65,7 @@ def _extra_headers() -> dict[str, str]:
 
 # ═════════════════════════════════════════════════════════════════════
 # Translation: OpenAI chat.completions  <->  Responses API
-# (pure functions — unit-testable without any network)
+# (pure functions - unit-testable without any network)
 # ═════════════════════════════════════════════════════════════════════
 
 
@@ -163,7 +163,7 @@ def chat_to_responses(payload: dict[str, Any]) -> dict[str, Any]:
 
     # The ChatGPT backend rejects sampling / limit params with HTTP 400
     # ("Unsupported parameter: temperature / top_p / max_output_tokens"), so we
-    # do NOT forward them. It does accept a `reasoning` object — map the chat
+    # do NOT forward them. It does accept a `reasoning` object - map the chat
     # `reasoning_effort` onto it.
     if isinstance(payload.get("reasoning"), dict):
         responses["reasoning"] = payload["reasoning"]

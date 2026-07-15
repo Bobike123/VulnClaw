@@ -4,7 +4,7 @@ Regression coverage for the template-rendering bug: templates were authored
 with ``str.format`` escaping (``{{`` / ``}}``) but rendered with ``str.replace``,
 which left literal double-braces in the generated PoC. That turned every ``dict``
 literal into a ``set`` (raising ``TypeError: unhashable type: 'dict'`` at runtime)
-and made f-strings print literal ``{var}`` text — so every finding was silently
+and made f-strings print literal ``{var}`` text - so every finding was silently
 rejected as a false positive regardless of the target's actual behaviour.
 """
 

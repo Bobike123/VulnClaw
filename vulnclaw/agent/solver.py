@@ -1,4 +1,4 @@
-"""Goal-driven OODA solve loop — a blackboard graph instead of a fixed-round workflow.
+"""Goal-driven OODA solve loop - a blackboard graph instead of a fixed-round workflow.
 
 Loop structure (no fixed rounds):
   1. Seed the initial Fact from origin/goal.
@@ -96,7 +96,7 @@ _DEAD_END_MARKERS = [
     "no echo",
     "ruled out",
 ]
-# Negation phrasing in a completion reason — used to detect and reject when the
+# Negation phrasing in a completion reason - used to detect and reject when the
 # model writes "not achieved" into the completion field
 _NEGATION_MARKERS = [
     "未达到",
@@ -238,7 +238,7 @@ def _completion_is_grounded(goal: str, evidence: str) -> tuple[bool, str]:
         return True, ""
     if _extract_flags(evidence):
         return True, ""
-    return False, "The goal requires a flag, but no flag appeared in any real tool output — judged unverified/suspected hallucination"
+    return False, "The goal requires a flag, but no flag appeared in any real tool output - judged unverified/suspected hallucination"
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -305,7 +305,7 @@ def _reason_prompt(board: Blackboard, max_intents: int) -> str:
     if abandoned:
         abandoned_block = "Abandoned intents (dead ends or already verified):\n"
         for i in abandoned[-10:]:
-            note = f" — {i.note[:60]}" if i.note else ""
+            note = f" - {i.note[:60]}" if i.note else ""
             abandoned_block += f"  - {i.id}: {i.description}{note}\n"
         abandoned_block += "⚠ **Never re-propose directions identical or highly overlapping with the abandoned intents above.** They are verified dead ends.\n\n"
 
@@ -341,7 +341,7 @@ def _reason_prompt(board: Blackboard, max_intents: int) -> str:
         "- **The complete field must be boolean true or false only**.\n"
         "- **Completion must be based on confirmed objective facts in the graph**, not guesses or wishes, and evidence must reference real fact ids.\n"
         "- If a fact is tagged [unverified]/[rejected]/suspected hallucination, you must never conclude completion from it.\n"
-        "- **Never re-propose directions identical or highly overlapping with abandoned intents** — they were already explored and led nowhere.\n"
+        "- **Never re-propose directions identical or highly overlapping with abandoned intents** - they were already explored and led nowhere.\n"
         "- If there are still OPEN intents and the current facts reveal nothing more valuable than them, "
         "return {\"complete\": false} (no new directions) and let the open intents continue.\n"
         f"- Propose at most {max_intents} high-value, non-overlapping, independently advanceable directions at once, each focused on a core idea.\n"
@@ -352,7 +352,7 @@ def _reason_prompt(board: Blackboard, max_intents: int) -> str:
 
 def _conclude_prompt(board: Blackboard, intent: BoardIntent, evidence: str) -> str:
     return (
-        "This is the conclusion phase. It overrides every earlier instruction to keep exploring/keep sending requests/keep waiting for results — stop acting immediately and only summarize.\n"
+        "This is the conclusion phase. It overrides every earlier instruction to keep exploring/keep sending requests/keep waiting for results - stop acting immediately and only summarize.\n"
         "You may only summarize information **actually confirmed** in real tool output; do not call more tools and do not wait for unfinished results.\n\n"
         "Return only a single JSON object:\n"
         '{"advanced": true/false, "fact": "the newly confirmed objective fact (incremental)"}\n\n'
@@ -367,7 +367,7 @@ def _conclude_prompt(board: Blackboard, intent: BoardIntent, evidence: str) -> s
         "advanced=false only when there is **no new finding at all**: every request was 404/timeout/known-info repetition.\n\n"
         "## Iron rules\n"
         "- A fact must be an objective fact **confirmed by real tool output**, not a plan, guess, or inference.\n"
-        "- **Never fabricate a flag/shell/password/data** — if it did not appear in tool output, you cannot claim it.\n"
+        "- **Never fabricate a flag/shell/password/data** - if it did not appear in tool output, you cannot claim it.\n"
         "- A fact records only incremental info; do not repeat what the graph already has.\n\n"
         f"## Current exploration direction {intent.id}\n{intent.description}\n\n"
         "## Real tool output from this exploration (your only trustworthy source of fact)\n```\n" + (evidence.strip() or "(no tool output)") + "\n```\n\n"
@@ -382,7 +382,7 @@ def _explore_context(board: Blackboard, intent: BoardIntent, step: int, max_roun
         from_desc = "\n".join(f"  - {f.id}: {f.description}" for f in refs if f)
         from_desc = f"\nBased on known facts:\n{from_desc}"
 
-    # Summary of tools already run — prevents cross-intent duplication
+    # Summary of tools already run - prevents cross-intent duplication
     tc_summary = board.tool_call_summary(20)
     tc_block = ""
     if tc_summary:
@@ -395,7 +395,7 @@ def _explore_context(board: Blackboard, intent: BoardIntent, step: int, max_roun
     conclude_override = ""
     if step == max_rounds:
         conclude_override = (
-            "\n## ⚠ This is the last step — stop exploring immediately and summarize\n"
+            "\n## ⚠ This is the last step - stop exploring immediately and summarize\n"
             "Do not start new tool calls and do not wait for unfinished results.\n"
             "Based on the tool output you have, summarize all objective facts found in this direction.\n\n"
         )
@@ -409,16 +409,16 @@ def _explore_context(board: Blackboard, intent: BoardIntent, step: int, max_roun
         "## Execution rules (must follow)\n"
         "1. Actually run tools around the current direction; every step must have a tool call + response analysis.\n"
         "2. ⚠ Never repeat the same tool + same args already listed under \"tools already run\" above.\n"
-        "3. ⚠ Fetch each URL only once — if already fetched, analyze the existing result directly.\n"
+        "3. ⚠ Fetch each URL only once - if already fetched, analyze the existing result directly.\n"
         "4. If this direction is a dead end, state the reason clearly and stop.\n"
         "\n## Tool-usage chains (choose by target type)\n"
         "Standard web-pentest chain:\n"
-        "  ① js_recon(url=target) — fetch JS to extract endpoints + auto unauthorized probing (**call first**)\n"
-        "  ② dir_enum(url=target) — directory enumeration\n"
-        "  ③ space_search(domain=domain) — asset search\n"
-        "  ④ subdomain_enum(domain=domain) — subdomain enumeration\n"
-        "  ⑤ unauth_test(base_url, endpoints) — unauthorized-access check on discovered endpoints\n"
-        "  ⑥ fetch(url, method) — single-request probe (only for specific paths not covered by js_recon/dir_enum)\n"
+        "  ① js_recon(url=target) - fetch JS to extract endpoints + auto unauthorized probing (**call first**)\n"
+        "  ② dir_enum(url=target) - directory enumeration\n"
+        "  ③ space_search(domain=domain) - asset search\n"
+        "  ④ subdomain_enum(domain=domain) - subdomain enumeration\n"
+        "  ⑤ unauth_test(base_url, endpoints) - unauthorized-access check on discovered endpoints\n"
+        "  ⑥ fetch(url, method) - single-request probe (only for specific paths not covered by js_recon/dir_enum)\n"
         "Chrome MCP chain: chrome_navigate → chrome_read_page/chrome_get_web_content → analyze (do not navigate repeatedly)\n"
     )
 
@@ -563,7 +563,7 @@ async def explore_step(
             break
         if any(m in last_text for m in _DEAD_END_MARKERS) and step >= 2:
             break
-        # 参考 Cairn checkpoint：比较本步前后 tool_calls 数量——没有新增说明模型空转
+        # 参考 Cairn checkpoint：比较本步前后 tool_calls 数量--没有新增说明模型空转
         cur_tc_count = len(board.tool_calls)
         if cur_tc_count == prev_tc_count:
             no_new_tc_streak += 1
@@ -638,7 +638,7 @@ async def solve(
         if on_event is not None:
             on_event(kind, payload)
 
-    # 全局证据缓冲区——所有 flag/完成判定的唯一可信证据来源
+    # 全局证据缓冲区--所有 flag/完成判定的唯一可信证据来源
     evidence_buffer: list[str] = []
     original_execute = agent._execute_mcp_tool
 
@@ -901,7 +901,7 @@ async def solve(
             if is_parallel:
                 summaries = []
                 for intent, advanced, fact, is_error in results:
-                    tag = "✓" if advanced else ("✗ ERR" if is_error else "—")
+                    tag = "✓" if advanced else ("✗ ERR" if is_error else "-")
                     summaries.append(f"[{intent.id} {tag}] {fact[:120]}")
                 agent.context.add_assistant_message(
                     "[Parallel exploration summary]\n" + "\n".join(summaries)

@@ -104,3 +104,33 @@ class TestAuditWiring:
             agent, "fetch", {"url": "https://target.test/x", "method": "GET"}
         )
         assert list(tmp_path.glob("session-*.jsonl")) == []
+
+    async def test_file_write_records_mutation_with_path(self, tmp_path):
+        agent = _agent(tmp_path)
+        agent.project_dir = tmp_path  # jail root for the file tools
+        result = await builtin_tools.execute_mcp_tool(
+            agent, "file_write", {"path": "poc.py", "content": "print('pwned')\n"}
+        )
+        assert result.startswith("[✓]")
+        assert (tmp_path / "poc.py").read_text() == "print('pwned')\n"
+
+        events = _events(tmp_path)
+        mutations = [e for e in events if e["event"] == "file_mutation"]
+        assert mutations, "file_write did not produce a file_mutation audit record"
+        data = mutations[0]["data"]
+        assert data["tool"] == "file_write"
+        assert data["path"] == "poc.py"
+        assert data["ok"] is True
+
+    async def test_failed_file_edit_records_mutation_not_ok(self, tmp_path):
+        agent = _agent(tmp_path)
+        agent.project_dir = tmp_path
+        # Editing a file that doesn't exist fails; the audit must still record it,
+        # marked ok=false, so the trail shows attempted-but-failed mutations too.
+        result = await builtin_tools.execute_mcp_tool(
+            agent, "file_edit", {"path": "missing.py", "old_string": "a", "new_string": "b"}
+        )
+        assert result.startswith("[!]")
+        mutations = [e for e in _events(tmp_path) if e["event"] == "file_mutation"]
+        assert mutations and mutations[0]["data"]["ok"] is False
+        assert mutations[0]["data"]["path"] == "missing.py"

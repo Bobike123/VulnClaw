@@ -3,9 +3,9 @@
 ## 1. 哈希攻击
 
 ### 彩虹表查询
-- crackstation.net — 免费，支持 MD5/SHA1/SHA256
-- cmd5.com — 中文，覆盖广泛
-- hashes.org — 社区维护
+- crackstation.net - 免费，支持 MD5/SHA1/SHA256
+- cmd5.com - 中文，覆盖广泛
+- hashes.org - 社区维护
 
 ### 哈希长度扩展攻击
 - 适用：MD5, SHA1, SHA256 等基于 Merkle-Damgård 的哈希

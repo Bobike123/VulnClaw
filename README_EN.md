@@ -2,7 +2,7 @@
 
 # VulnClaw 🦞
 
-> *AI-Powered Penetration Testing CLI — Speak plainly, find real bugs.*
+> *AI-Powered Penetration Testing CLI - Speak plainly, find real bugs.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
@@ -52,19 +52,19 @@ Suitable for authorized pentests, CTF competitions, security training, and red t
 
 ## Features
 
-- **Natural Language Driven** — Describe your intent in plain English, it auto-identifies phases and tools
-- **13 LLM Providers** — OpenAI / Anthropic / MiniMax / DeepSeek / Zhipu / Moonshot / Qwen / SiliconFlow / Doubao / Baichuan / StepFun / SenseTime / Yi, one-command switch
-- **MCP Toolchain** — Ships with 11 MCP service configs and 23 tool definitions; `fetch` / `memory` currently run in stable `local` mode, while most other MCP integrations remain preview or placeholder until full session lifecycle management is completed
-- **AI Agent Core** — OpenAI-compatible protocol + Tool Calling + autonomous pentest loop
-- **21 Pentest Skills** — 7 core + 14 specialized skills (incl. CTF Web/Crypto/Misc, osint-recon, secknowledge-skill), 180 reference documents
-- **Encode/Decode & Crypto Tools** — 29 operations (Base64/Hex/URL/AES/JWT/Morse etc.), LLM calls them directly, no guessing
-- **Python Code Execution** — Built-in `python_execute` tool for payload crafting and response parsing; currently still a high-risk experimental capability, not a strong isolation sandbox
-- **Persistent Pentesting** — Cyclic runs (100 rounds/cycle × 10 cycles = 1000 rounds), auto-reports every cycle, runs until you stop it
-- **Thinking Process Control** — `think on/off` toggles LLM reasoning visibility, off by default for clean output
-- **Sandbox Mode Prompting** — Unlocks AI security testing capabilities, designed for CTF and authorized pentest scenarios
-- **Auto Report & PoC** — Generates structured Markdown reports and runnable Python PoC scripts
-- **Web UI Mode** — `vulnclaw web` launches a local web interface for browser-based pentest operations, default `127.0.0.1:7788`
-- **Security Knowledge Base** — Includes the KB module and baseline seed data today; retrieval augmentation is being integrated into the main workflow incrementally
+- **Natural Language Driven** - Describe your intent in plain English, it auto-identifies phases and tools
+- **13 LLM Providers** - OpenAI / Anthropic / MiniMax / DeepSeek / Zhipu / Moonshot / Qwen / SiliconFlow / Doubao / Baichuan / StepFun / SenseTime / Yi, one-command switch
+- **MCP Toolchain** - Ships with 11 MCP service configs and 23 tool definitions; `fetch` / `memory` currently run in stable `local` mode, while most other MCP integrations remain preview or placeholder until full session lifecycle management is completed
+- **AI Agent Core** - OpenAI-compatible protocol + Tool Calling + autonomous pentest loop
+- **21 Pentest Skills** - 7 core + 14 specialized skills (incl. CTF Web/Crypto/Misc, osint-recon, secknowledge-skill), 180 reference documents
+- **Encode/Decode & Crypto Tools** - 29 operations (Base64/Hex/URL/AES/JWT/Morse etc.), LLM calls them directly, no guessing
+- **Python Code Execution** - Built-in `python_execute` tool for payload crafting and response parsing; currently still a high-risk experimental capability, not a strong isolation sandbox
+- **Persistent Pentesting** - Cyclic runs (100 rounds/cycle × 10 cycles = 1000 rounds), auto-reports every cycle, runs until you stop it
+- **Thinking Process Control** - `think on/off` toggles LLM reasoning visibility, off by default for clean output
+- **Sandbox Mode Prompting** - Unlocks AI security testing capabilities, designed for CTF and authorized pentest scenarios
+- **Auto Report & PoC** - Generates structured Markdown reports and runnable Python PoC scripts
+- **Web UI Mode** - `vulnclaw web` launches a local web interface for browser-based pentest operations, default `127.0.0.1:7788`
+- **Security Knowledge Base** - Includes the KB module and baseline seed data today; retrieval augmentation is being integrated into the main workflow incrementally
 
 ---
 
@@ -119,7 +119,7 @@ vulnclaw config set llm.model your-model-name
 
 # 2. Set API Key
 vulnclaw config set llm.api_key sk-your-key-here
-#    — or sign in with a ChatGPT subscription instead of a key:
+#    - or sign in with a ChatGPT subscription instead of a key:
 #      vulnclaw login   (browser sign-in; see docs/keyless-auth.md, note the ToS caveat)
 
 # 3. Default: open the original CLI / REPL
@@ -169,7 +169,7 @@ Run `vulnclaw --help` to see all available commands:
 ```bash
 $ vulnclaw --help
 
-🦞 VulnClaw — AI-powered penetration testing CLI
+🦞 VulnClaw - AI-powered penetration testing CLI
 
  Usage: vulnclaw [OPTIONS] COMMAND [ARGS]...
 
@@ -273,7 +273,7 @@ $ vulnclaw
 No-args startup opens the original 🦞 interactive shell for natural-language use:
 
 ```text
-🦞 vulnclaw> pentest 192.168.1.100 — this is my authorized lab
+🦞 vulnclaw> pentest 192.168.1.100 - this is my authorized lab
 
 [*] Entering autonomous pentest mode. Press Ctrl+C to interrupt at any time.
 ── Round 1 ──
@@ -325,7 +325,7 @@ $ vulnclaw repl
 Enter the classic 🦞 interactive shell and chat in natural language:
 
 ```
-🦞 vulnclaw> pentest 192.168.1.100 — this is my authorized lab
+🦞 vulnclaw> pentest 192.168.1.100 - this is my authorized lab
 
 [*] Entering autonomous pentest mode. Press Ctrl+C to interrupt at any time.
 ── Round 1 ──
@@ -411,11 +411,11 @@ For long-running deep penetration. VulnClaw runs in **cyclic loops**:
 ```
 
 **Features**:
-- **Cross-cycle state** — Each cycle preserves all previous findings, vulnerabilities, and step records
-- **Cycle reports** — Auto-generates independent Markdown report per cycle (new findings + cumulative summary)
-- **Graceful interrupt** — Ctrl+C at any time still generates the current cycle's report
-- **Incremental discovery** — Reports distinguish "new this cycle" from "cumulative total"
-- **Fully configurable** — Rounds per cycle, max cycles, auto-report toggle all customizable
+- **Cross-cycle state** - Each cycle preserves all previous findings, vulnerabilities, and step records
+- **Cycle reports** - Auto-generates independent Markdown report per cycle (new findings + cumulative summary)
+- **Graceful interrupt** - Ctrl+C at any time still generates the current cycle's report
+- **Incremental discovery** - Reports distinguish "new this cycle" from "cumulative total"
+- **Fully configurable** - Rounds per cycle, max cycles, auto-report toggle all customizable
 
 ```bash
 # CLI mode
@@ -435,7 +435,7 @@ vulnclaw tui --target 192.168.1.100 --mode continuous
 
 ### Mode 4: Web UI
 
-Operate the full pentest workflow through a browser — ideal for users who prefer a graphical interface.
+Operate the full pentest workflow through a browser - ideal for users who prefer a graphical interface.
 
 ```bash
 # Install Web dependencies
@@ -453,7 +453,7 @@ vulnclaw web --dry-run
 
 Once launched, open `http://127.0.0.1:7788` in your browser.
 
-> ⚠️ By default the server binds to localhost only. To allow remote access you must explicitly pass `--host 0.0.0.0 --allow-remote` — make sure your network is secure.
+> ⚠️ By default the server binds to localhost only. To allow remote access you must explicitly pass `--host 0.0.0.0 --allow-remote` - make sure your network is secure.
 
 ---
 
@@ -590,13 +590,13 @@ vulnclaw config provider minimax   # one-command switch
 | osint-recon               | 7        | OSINT four-dimension model (server/web/domain/person)|
 | secknowledge-skill        | 39       | Web+AI security testing knowledge base for CTF/SRC/bug bounty workflows |
 
-Skills are auto-dispatched based on user input — no manual selection needed. Specialized skills include detailed methodology documents in `references/`, loadable via the `load_skill_reference` tool.
+Skills are auto-dispatched based on user input - no manual selection needed. Specialized skills include detailed methodology documents in `references/`, loadable via the `load_skill_reference` tool.
 
 `secknowledge-skill` integrates [`Pa55w0rd/secknowledge-skill`](https://github.com/Pa55w0rd/secknowledge-skill). All 38 upstream `references/` documents are included, plus VulnClaw's `vulnclaw-ctf-src-routing.md` guide for CTF/SRC workflows. It is routed by strong signals such as `SRC`, vulnerability research, bug bounty, GAARM, OWASP LLM/ASI/WSTG, and Web+AI testing, then loads SQLi, XSS, RCE, SSRF, AI/MCP, Agent, risk-matrix, and methodology references on demand.
 
 ### Built-in Encode/Decode & Crypto Tool (`crypto_decode`)
 
-Registered as a built-in Agent tool, callable in any context — no more guessing at decoded output:
+Registered as a built-in Agent tool, callable in any context - no more guessing at decoded output:
 
 | Category  | Operations                                                                                   |
 | --------- | -------------------------------------------------------------------------------------------- |
@@ -604,7 +604,7 @@ Registered as a built-in Agent tool, callable in any context — no more guessin
 | Hashing   | md5, sha1, sha256, sha512                                                                   |
 | Encrypt   | aes_encrypt, aes_decrypt (CBC mode, PKCS7 padding)                                          |
 | JWT       | jwt_decode, jwt_encode                                                                      |
-| Auto      | auto_decode — tries all common encodings, returns matching results                            |
+| Auto      | auto_decode - tries all common encodings, returns matching results                            |
 
 ---
 
@@ -645,7 +645,7 @@ vulnclaw config set session.show_thinking false  # hide thinking process (also i
 | `session.persistent_rounds_per_cycle`   | 100            | Rounds per cycle in persistent mode              |
 | `session.persistent_max_cycles`        | 10             | Max cycles in persistent mode (0=unlimited)     |
 | `session.persistent_auto_report`        | true           | Auto-generate report after each cycle            |
-| `session.stale_rounds_threshold`        | 5              | Dead-loop threshold — triggers forced strategy switch after this many rounds with no new findings |
+| `session.stale_rounds_threshold`        | 5              | Dead-loop threshold - triggers forced strategy switch after this many rounds with no new findings |
 
 ### Environment Variables
 
@@ -704,6 +704,6 @@ Connect with security enthusiasts to share, learn, and grow together.
 
 <div align="center">
 
-> 🦞 **VulnClaw** — Every pentest should follow a process.
+> 🦞 **VulnClaw** - Every pentest should follow a process.
 
 </div>

@@ -1,6 +1,6 @@
 ---
 name: vuln-discovery
-description: 漏洞发现流程 — 基于信息收集结果扫描漏洞
+description: 漏洞发现流程 - 基于信息收集结果扫描漏洞
 ---
 
 # 漏洞发现 Skill

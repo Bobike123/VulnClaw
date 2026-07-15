@@ -10,10 +10,10 @@ PHP 的 `preg_match()` 函数在过滤用户输入时，常因正则表达式设
 **适用条件**: 正则没有 `i`（PCRE_CASELESS）修饰符
 
 ```php
-// 被过滤的正则 — 无 i 修饰符
+// 被过滤的正则 - 无 i 修饰符
 preg_match("/n|c/m", $_GET['p']);  // 只匹配小写 n 和 c
 
-// 绕过方式 — 用大写字母
+// 绕过方式 - 用大写字母
 // nss2 含有 n → 被拦截
 // Nss2 含有 N → 不匹配小写 n → 绕过成功！
 // Ctf 含有 C → 不匹配小写 c → 绕过成功！
@@ -107,7 +107,7 @@ call_user_func([$obj, 'method']);
 
 ## ⚠️ 常见错误
 
-1. **`call_user_func('readfile')` 不带参数** — 不会读取任何文件，必须传 `call_user_func('readfile', 'flag.php')`
-2. **混淆 `m` 和 `i` 修饰符** — `m` 是多行模式，`i` 才是忽略大小写
-3. **忽略 PHP 类型杂耍** — `preg_match` 遇到数组返回 `false`，不是 `0`
-4. **猜测 flag 内容** — 必须通过工具获取真实响应，不能编造
+1. **`call_user_func('readfile')` 不带参数** - 不会读取任何文件，必须传 `call_user_func('readfile', 'flag.php')`
+2. **混淆 `m` 和 `i` 修饰符** - `m` 是多行模式，`i` 才是忽略大小写
+3. **忽略 PHP 类型杂耍** - `preg_match` 遇到数组返回 `false`，不是 `0`
+4. **猜测 flag 内容** - 必须通过工具获取真实响应，不能编造

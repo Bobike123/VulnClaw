@@ -67,12 +67,12 @@
 
 ## CTF 常见编码链
 
-1. **Base64 → 明文** — 最常见
-2. **Base64 → Hex → 明文** — 双重编码
-3. **Base64 → Base64 → 明文** — 嵌套 Base64
-4. **Hex → Base64 → ROT13 → 明文** — 三层编码
-5. **URL编码 → Base64 → 明文** — Web 场景常见
-6. **Morse → Base64 → Hex → 明文** — Crypto 题目
+1. **Base64 → 明文** - 最常见
+2. **Base64 → Hex → 明文** - 双重编码
+3. **Base64 → Base64 → 明文** - 嵌套 Base64
+4. **Hex → Base64 → ROT13 → 明文** - 三层编码
+5. **URL编码 → Base64 → 明文** - Web 场景常见
+6. **Morse → Base64 → Hex → 明文** - Crypto 题目
 
 ## 解码后验证
 

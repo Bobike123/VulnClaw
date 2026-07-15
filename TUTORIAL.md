@@ -1,6 +1,6 @@
-# VulnClaw Tutorial — Setup & Usage
+# VulnClaw Tutorial - Setup & Usage
 
-This guide takes you from a clean machine to running VulnClaw in all three interfaces: the **CLI/REPL**, the **TUI workbench**, and the **Web UI**. VulnClaw is an AI-powered penetration-testing assistant for **authorized** security testing only — you must have written permission for every target you test.
+This guide takes you from a clean machine to running VulnClaw in all three interfaces: the **CLI/REPL**, the **TUI workbench**, and the **Web UI**. VulnClaw is an AI-powered penetration-testing assistant for **authorized** security testing only - you must have written permission for every target you test.
 
 > New to the safety model? Read [SECURITY.md](SECURITY.md) first. VulnClaw is default-deny: nothing beyond `localhost` runs until you authorize it.
 
@@ -89,7 +89,7 @@ VulnClaw refuses to touch anything beyond `localhost` unless it's in scope.
 vulnclaw scope init                       # writes .vulnclaw-scope.yaml in the current dir
 ```
 
-Edit `.vulnclaw-scope.yaml` — add the domains / IP ranges / ports you are **authorized** to test:
+Edit `.vulnclaw-scope.yaml` - add the domains / IP ranges / ports you are **authorized** to test:
 
 ```yaml
 allow:
@@ -151,7 +151,7 @@ Exploitation, brute-force, OSINT, PoC generation, browser interaction, and reque
 
 1. Enable the capability: `vulnclaw config set risky_tools.enable_exploit true`
 2. Make sure the scope permits the phase (`allowed_phases`).
-3. Approve the action — either run in interactive mode, or add a signed entry to `.vulnclaw-approvals.yaml`:
+3. Approve the action - either run in interactive mode, or add a signed entry to `.vulnclaw-approvals.yaml`:
 
 ```yaml
 approvals:
@@ -198,7 +198,7 @@ Open the printed address in your browser. The interface is **dark-mode** and Eng
 
 - The full UI provides a home check wizard, findings/evidence, a report center, the safety-boundary page (shows what was blocked and why), history/snapshots, and settings.
 
-The Web UI honors the same scope, approval, budget, and audit controls as the CLI — nothing bypasses the safety spine.
+The Web UI honors the same scope, approval, budget, and audit controls as the CLI - nothing bypasses the safety spine.
 
 ---
 

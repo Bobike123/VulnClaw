@@ -58,7 +58,7 @@ class TestFilesystemGuard:
         assert r.status == "ok"
 
     def test_sensitive_path_denied_even_in_lab_mode(self):
-        # The path need not exist — the guard denies before opening.
+        # The path need not exist - the guard denies before opening.
         r = run_sandboxed("open('/root/.ssh/id_rsa').read()", mode="lab")
         assert r.status == "blocked"
         assert "sensitive path" in r.stderr

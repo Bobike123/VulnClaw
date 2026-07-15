@@ -58,7 +58,7 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     if round_num <= agent.runtime.user_vuln_hint_rounds and agent.runtime.user_vuln_hint:
         user_hint_directive = (
             f"\n\n{'=' * 50}\n"
-            f"[Explicit user hint — round {round_num}/{agent.runtime.user_vuln_hint_rounds}]\n"
+            f"[Explicit user hint - round {round_num}/{agent.runtime.user_vuln_hint_rounds}]\n"
             f"{agent.runtime.user_vuln_hint}\n"
             f"{'=' * 50}\n"
         )
@@ -193,7 +193,7 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     if blocked_targets:
         blocked_targets_warning = (
             f"\n\n🚨 **Target-unreachable warning**: the following targets have failed repeatedly; do not try them again:"
-            f"\n{chr(10).join(f'  ❌ {target} — confirmed unreachable' for target in blocked_targets)}"
+            f"\n{chr(10).join(f'  ❌ {target} - confirmed unreachable' for target in blocked_targets)}"
             f"\n\nYou must:"
             f"\n1. Immediately stop accessing the targets above"
             f"\n2. Focus on other live targets"
@@ -241,14 +241,14 @@ def build_round_context(agent: AgentContext, round_num: int, max_rounds: int) ->
     is_ctf = agent.runtime.is_ctf_mode
     if is_ctf and not claimed_flag:
         ctf_mode_warning = (
-            "\n\n🔴 CTF solving mode — your task is to find and verify the flag."
+            "\n\n🔴 CTF solving mode - your task is to find and verify the flag."
             "\nYou have not found any flag yet; do not mark [DONE]."
             "\nAnalyze the available info and pick the most likely attack path to advance."
             "\nIf the current path is blocked, try switching to another."
         )
     elif is_ctf and claimed_flag and not flag_verified:
         ctf_mode_warning = (
-            "\n\n🔴 CTF solving mode — you claimed a flag but did not verify it."
+            "\n\n🔴 CTF solving mode - you claimed a flag but did not verify it."
             "\nYou must verify the flag's authenticity with a tool before marking [DONE]."
             "\nIf verification fails, keep looking for the correct flag."
         )

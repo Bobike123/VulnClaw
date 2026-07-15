@@ -44,7 +44,7 @@ def test_chat_to_responses_maps_roles_tools_and_params():
     ]
     assert r["input"][3]["call_id"] == "c1"
     assert r["tools"][0] == {"type": "function", "name": "f", "description": "d", "parameters": {}}
-    # The ChatGPT backend rejects sampling/limit params — they must NOT be sent.
+    # The ChatGPT backend rejects sampling/limit params - they must NOT be sent.
     assert "temperature" not in r
     assert "max_output_tokens" not in r
     assert "top_p" not in r
@@ -146,7 +146,7 @@ def mock_backend(monkeypatch):
         return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n".encode()
 
     class Backend(BaseHTTPRequestHandler):
-        def do_POST(self):  # noqa: N802 — emulates the streaming Responses backend
+        def do_POST(self):  # noqa: N802 - emulates the streaming Responses backend
             received["auth"] = self.headers.get("Authorization")
             received["account"] = self.headers.get("chatgpt-account-id")
             n = int(self.headers.get("Content-Length", 0))

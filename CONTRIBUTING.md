@@ -155,11 +155,11 @@ main.py (Typer CLI)
 **提示状态机：**
 
 `session["_prompt"]` 元组类型（同时设置 `_show_popup = True` 触发二级弹窗）：
-- `("input", label, callback, default)` — 弹窗显示描述 + 输入框，Enter 确认
-- `("choice", label, choices, callback)` — 弹窗显示描述 + 选项列表，方向键选择 + Enter 确认
-- `("confirm", label, callback)` — 弹窗显示描述 + y/n，按键直接确认（y = True, n/esc = False）
-- `("message", text)` — 弹窗显示纯文本，Enter/Escape 关闭（回调为 None）
-- `("chain", fields, idx, callback)` — 弹窗显示链式多字段输入（如 scope 逐项设置），每步 Enter 进入下一字段，完成后触发 callback（可级联弹窗）
+- `("input", label, callback, default)` - 弹窗显示描述 + 输入框，Enter 确认
+- `("choice", label, choices, callback)` - 弹窗显示描述 + 选项列表，方向键选择 + Enter 确认
+- `("confirm", label, callback)` - 弹窗显示描述 + y/n，按键直接确认（y = True, n/esc = False）
+- `("message", text)` - 弹窗显示纯文本，Enter/Escape 关闭（回调为 None）
+- `("chain", fields, idx, callback)` - 弹窗显示链式多字段输入（如 scope 逐项设置），每步 Enter 进入下一字段，完成后触发 callback（可级联弹窗）
 
 **命令面板（CommandPalette）：**
 

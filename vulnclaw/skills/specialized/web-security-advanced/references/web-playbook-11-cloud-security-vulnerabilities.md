@@ -18,7 +18,7 @@ Execution Outline:
 1. 1. AWS元数据服务探测
 2. 2. GCP/Azure元数据利用
 3. 3. 利用获取的凭据横向移动
-4. 4. 深度利用——S3数据泄露/权限提升
+4. 4. 深度利用--S3数据泄露/权限提升
 ## S3存储桶配置错误利用
 - ID: cloud-s3-misconfig
 - Difficulty: beginner

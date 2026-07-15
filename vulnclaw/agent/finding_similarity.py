@@ -1,4 +1,4 @@
-"""VulnClaw Finding Similarity — lightweight semantic deduplication.
+"""VulnClaw Finding Similarity - lightweight semantic deduplication.
 
 Pure-Python semantic deduplication of vulnerability findings, with no external NLP libraries.
 
@@ -304,7 +304,7 @@ def finding_similarity(a: "VulnerabilityFinding", b: "VulnerabilityFinding") -> 
 
     loc_a, loc_b = _extract_location(a), _extract_location(b)
     if not loc_a and not loc_b:
-        # 两者都无明确位置 — 该维度不可比，视为中性（不加分也不减分）
+        # 两者都无明确位置 - 该维度不可比，视为中性（不加分也不减分）
         loc_sim = 0.5
     else:
         loc_sim = url_similarity(loc_a, loc_b)

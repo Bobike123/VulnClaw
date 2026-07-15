@@ -1,6 +1,6 @@
 """Tests for the project-directory file tools (file_read/write/edit/list_dir).
 
-These are on by default (no safety.enable_* toggle, unlike python_execute) —
+These are on by default (no safety.enable_* toggle, unlike python_execute) -
 the jailing to agent.project_dir plus the sensitive-path blocklist are the
 whole safety story, so that's what these tests exercise hardest.
 """

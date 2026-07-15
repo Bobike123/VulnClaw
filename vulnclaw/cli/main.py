@@ -136,7 +136,7 @@ app = typer.Typer(
     name="vulnclaw",
     help="VulnClaw - AI-powered penetration testing CLI (run 'vulnclaw tui' for the TUI workbench)",
     no_args_is_help=False,
-    add_completion=False,
+    add_completion=True,  # expose --install-completion / --show-completion for the 37+ commands
 )
 
 console = Console()
@@ -504,7 +504,7 @@ def _run_repl() -> None:
 
             elif _is_cli_login_query(user_input):
                 # "logged in?" etc. asks about VulnClaw's own LLM session, not
-                # the pentest target — answer from local state, no LLM call.
+                # the pentest target - answer from local state, no LLM call.
                 _print_llm_auth_status(config, agent)
                 continue
 
@@ -746,7 +746,7 @@ def _run_repl() -> None:
                                 console.print()
                                 console.print(
                                     Panel(
-                                        f"{'✅ Goal reached' if done else '⊘ Not reached'} — "
+                                        f"{'✅ Goal reached' if done else '⊘ Not reached'} - "
                                         f"facts={board.get('facts', 0)} intents={board.get('intents', 0)}\n"
                                         f"Reason: {board.get('complete_reason') or 'exploration finished'}",
                                         title="Solve",
@@ -865,7 +865,7 @@ def _run_repl() -> None:
         except EOFError:
             break
 
-    # Cleanup — suppress SIGINT to prevent re-trigger during threading shutdown
+    # Cleanup - suppress SIGINT to prevent re-trigger during threading shutdown
     import signal
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -931,7 +931,7 @@ def _print_status(agent, mcp_manager, target, phase, config) -> None:
 def _llm_auth_state_text(config, agent=None) -> str:
     """Short colored summary of VulnClaw's own LLM login state (local, no network call)."""
     if getattr(agent, "_chatgpt_usage_exhausted", False):
-        return "[yellow]ChatGPT usage limit reached[/] — using [bold]FreeLLMAPI fallback[/]"
+        return "[yellow]ChatGPT usage limit reached[/] - using [bold]FreeLLMAPI fallback[/]"
     auth = inspect_llm_auth(config.llm)
     if not auth.ready:
         return f"[red]not logged in[/] ({auth.mode})"
@@ -940,7 +940,7 @@ def _llm_auth_state_text(config, agent=None) -> str:
     return f"[green]logged in[/] ({auth.mode})"
 
 
-# Narrow, exact-phrase matches only — this must never hijack legitimate
+# Narrow, exact-phrase matches only - this must never hijack legitimate
 # in-scope pentest questions like "is the admin logged in on target X".
 _CLI_LOGIN_QUERY_PHRASES = {
     "logged in",
@@ -969,7 +969,7 @@ def _is_cli_login_query(user_input: str) -> bool:
     """True when the user is asking whether *VulnClaw itself* is logged in to its LLM.
 
     This is local CLI/OAuth state (see `vulnclaw login`) that the pentest agent
-    has no way to answer — it only knows about target-side authentication.
+    has no way to answer - it only knows about target-side authentication.
     Matched as an exact phrase (not substring) so real pentest prompts stay
     routed to the agent.
     """
@@ -981,7 +981,7 @@ def _print_llm_auth_status(config, agent=None) -> None:
     """Answer a 'logged in?' style question locally, without an LLM round-trip."""
     if getattr(agent, "_chatgpt_usage_exhausted", False):
         console.print(
-            "[yellow]⚠[/] ChatGPT usage limit reached this session — "
+            "[yellow]⚠[/] ChatGPT usage limit reached this session - "
             "requests are routed to the local [bold]FreeLLMAPI[/] fallback."
         )
         return
@@ -1227,7 +1227,7 @@ def run(
         board = board_holder["board"]
         status = "✅ Goal reached" if board.get("completed") else "⊘ Not reached"
         console.print(
-            f"\n[bold]{status}[/bold] — facts={board.get('facts', 0)} "
+            f"\n[bold]{status}[/bold] - facts={board.get('facts', 0)} "
             f"intents={board.get('intents', 0)} reason: {board.get('complete_reason') or 'exploration finished'}"
         )
     else:
@@ -1257,7 +1257,7 @@ def solve(
     resume: bool = typer.Option(True, "--resume/--no-resume", help="Resume previous target state"),
     snapshot: Optional[str] = typer.Option(None, "--snapshot", help="Resume from a snapshot id"),
 ) -> None:
-    """Goal-driven solve loop — runs until the goal is met or the exploration frontier is exhausted.
+    """Goal-driven solve loop - runs until the goal is met or the exploration frontier is exhausted.
 
     Unlike `run`, this has no fixed round count. It searches a Fact/Intent graph
     from the target toward the goal and stops on success or when no path remains.
@@ -1305,7 +1305,7 @@ def solve(
     board = holder.get("board") or {}
     status = "✅ Goal reached" if board.get("completed") else "⊘ Not reached"
     console.print(
-        f"\n[bold]{status}[/bold] — facts={board.get('facts', 0)} "
+        f"\n[bold]{status}[/bold] - facts={board.get('facts', 0)} "
         f"intents={board.get('intents', 0)} reason: {board.get('complete_reason') or 'exploration finished'}"
     )
 
@@ -2096,7 +2096,7 @@ def login(
 
     Opens the ChatGPT consent page in your browser, stores the resulting
     refreshable token, and enables the built-in proxy that bridges
-    chat.completions to the ChatGPT backend — so VulnClaw just works afterwards.
+    chat.completions to the ChatGPT backend - so VulnClaw just works afterwards.
 
     ⚠️ This reuses OpenAI's first-party Codex OAuth client. Using a ChatGPT
     subscription through a non-official client may violate OpenAI's Terms of
@@ -2128,7 +2128,7 @@ def login(
     set_config_value("llm.oauth_client_id", CHATGPT_CLIENT_ID)
     if set_default:
         set_config_value("llm.auth_mode", "oauth")
-    # The ChatGPT backend serves its own model family — gpt-4o won't work.
+    # The ChatGPT backend serves its own model family - gpt-4o won't work.
     if (llm.model or "").lower() in ("", "gpt-4o", "gpt-5", "gpt-5-codex"):
         set_config_value("llm.model", "gpt-5.5")
 
@@ -2137,7 +2137,7 @@ def login(
         set_config_value("llm.base_url", proxy_url.rstrip("/"))
         set_config_value("llm.chatgpt_auto_proxy", "false")
     else:
-        # Default: built-in proxy auto-starts on demand — zero setup.
+        # Default: built-in proxy auto-starts on demand - zero setup.
         set_config_value("llm.chatgpt_auto_proxy", "true")
 
     tok = bundle.get("access_token", "")
@@ -2151,7 +2151,7 @@ def login(
         console.print(f"  base_url set to external proxy: [dim]{proxy_url.rstrip('/')}[/]")
     else:
         console.print(
-            "  [green]Built-in ChatGPT proxy enabled — it starts automatically.[/]\n"
+            "  [green]Built-in ChatGPT proxy enabled - it starts automatically.[/]\n"
             "  [dim]No external proxy needed. The bridge to OpenAI's ChatGPT backend "
             "is experimental; if a call fails, the error shows the backend response "
             "so you can adjust llm.model or the VULNCLAW_CHATGPT_* env vars.[/]"
@@ -2165,7 +2165,7 @@ def logout() -> None:
     from vulnclaw.config.token_provider import logout_oauth
 
     if logout_oauth():
-        console.print("[green]Signed out — stored OAuth tokens removed.[/]")
+        console.print("[green]Signed out - stored OAuth tokens removed.[/]")
     else:
         console.print("[yellow]No stored OAuth tokens to remove.[/]")
 
@@ -2307,7 +2307,7 @@ def _print_security_report(config: Any) -> None:
         f"    scope file: {'[green]' + str(scope_path) + '[/]' if scope_path else '[yellow]none (defaults: localhost only)[/]'}"
     )
     if not scope.enforce:
-        console.print("    [red]! scope enforcement is OFF — the central authorization boundary is disabled[/]")
+        console.print("    [red]! scope enforcement is OFF - the central authorization boundary is disabled[/]")
 
     # Approval
     approval = config.approval
@@ -2384,11 +2384,11 @@ app.add_typer(scope_app, name="scope")
 
 
 _SCOPE_TEMPLATE = """\
-# VulnClaw engagement scope — the authorization boundary for ALL target activity.
+# VulnClaw engagement scope - the authorization boundary for ALL target activity.
 # VulnClaw is DEFAULT-DENY: only what is listed here (plus localhost) is in scope.
 # You are responsible for having written authorization for every target in scope.
 
-engagement: "Authorized engagement — describe it here"
+engagement: "Authorized engagement - describe it here"
 authorized_by: "you@example.com"
 
 allow:
@@ -2416,7 +2416,7 @@ allowed_phases:
   - scan
   # - exploit_validation
 
-# Capability toggles — all default-deny.
+# Capability toggles - all default-deny.
 features:
   osint: false
   browser_automation: false

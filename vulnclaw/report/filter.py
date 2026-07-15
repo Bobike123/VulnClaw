@@ -1,4 +1,4 @@
-"""VulnClaw Report Content Filter — clean raw LLM output into pure report text.
+"""VulnClaw Report Content Filter - clean raw LLM output into pure report text.
 
 Filtering targets:
     - TOOL_CALL markers and content
@@ -17,7 +17,7 @@ from typing import Optional
 
 
 class ReportContentFilter:
-    """Report content filter — extract clean report text from raw LLM output."""
+    """Report content filter - extract clean report text from raw LLM output."""
 
     # ── Filter patterns ───────────────────────────────────────────────────
 

@@ -684,7 +684,7 @@ def _build_navigator_layer(
 
         comment = f"[{m.source}] {m.source_name}"
         if m.notes:
-            comment += f" — {m.notes}"
+            comment += f" - {m.notes}"
         tech_comments.setdefault(tid, []).append(comment)
 
     # Build technique entries
@@ -880,7 +880,7 @@ class AttackMapper:
             name = f"VulnClaw: {report.target}" if report.target else "VulnClaw Assessment"
         if not description:
             description = (
-                f"Assessment of {report.target} — "
+                f"Assessment of {report.target} - "
                 f"{len(report.mappings)} technique mappings from "
                 f"{report.total_findings} findings and {report.total_tools} tool executions"
             )
@@ -979,7 +979,7 @@ class AttackMapper:
                 source_icon = "🔍" if m["source"] == "finding" else "🔧"
 
                 lines.append(
-                    f"- {conf_icon} **{tech['id']}** — {tech['name']}"
+                    f"- {conf_icon} **{tech['id']}** - {tech['name']}"
                     f"{sev_str} ({source_icon} {m['source_name']})"
                 )
                 if m["notes"]:

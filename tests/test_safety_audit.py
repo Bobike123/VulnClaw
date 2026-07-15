@@ -95,7 +95,7 @@ class TestHashChain:
         log.log("b")
         log.log("c")
         lines = log.path.read_text(encoding="utf-8").strip().splitlines()
-        # Drop the middle event — breaks prev_hash linkage.
+        # Drop the middle event - breaks prev_hash linkage.
         del lines[1]
         log.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         assert verify_chain(log.path) is False

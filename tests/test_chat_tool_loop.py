@@ -2,14 +2,14 @@
 
 Regression for the reported bug: after a tool call (e.g. ``file_read``) the chat
 path returned the tool's raw output and ended the turn instead of feeding the
-result back to the model — so "after reading the file the convo stops", and a
+result back to the model - so "after reading the file the convo stops", and a
 read → edit chain could never complete in one turn ("creating and modifying
 files is buggy").
 
 These drive ``call_llm`` (non-streaming, the web path) and ``call_llm_stream``
 (streaming, the REPL path) through the real ``handle_tool_calls_with_results``
 tool dispatch, asserting the tools run in order and the final answer is the
-model's text — not the raw tool output.
+model's text - not the raw tool output.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ async def test_call_llm_loops_tool_then_returns_model_text(monkeypatch):
     client = _ScriptedClient(
         [
             _response(_message(tool_calls=[_tool_call("c1", "file_read", '{"path": "foo.py"}')])),
-            _response(_message(content="foo.py defines add(), which subtracts — a bug.")),
+            _response(_message(content="foo.py defines add(), which subtracts - a bug.")),
         ]
     )
     agent = _ToolAgent(client)
@@ -134,7 +134,7 @@ async def test_call_llm_loops_tool_then_returns_model_text(monkeypatch):
     result = await llm_client.call_llm(agent, "sys")
 
     assert agent.tool_calls_made == [("file_read", {"path": "foo.py"})]
-    assert result == "foo.py defines add(), which subtracts — a bug."
+    assert result == "foo.py defines add(), which subtracts - a bug."
     # The raw tool output must NOT be what the turn returns.
     assert "[file_read]" not in result
 

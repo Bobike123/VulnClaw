@@ -1,4 +1,4 @@
-"""VulnClaw MCP Lifecycle Manager — start/stop MCP servers and manage their lifetime."""
+"""VulnClaw MCP Lifecycle Manager - start/stop MCP servers and manage their lifetime."""
 
 from __future__ import annotations
 
@@ -609,7 +609,7 @@ class MCPLifecycleManager:
             except Exception as exc:
                 return False, str(exc), []
 
-        # A loop is already running — run the probe on a worker thread with its
+        # A loop is already running - run the probe on a worker thread with its
         # own event loop so we don't deadlock the caller.
         def _in_thread():
             return asyncio.run(asyncio.wait_for(coro, timeout=timeout_s))
@@ -846,7 +846,7 @@ class MCPLifecycleManager:
 
         If the connect/initialize fails (e.g. "Already connected"), the error is
         raised to the caller so the tool_call_manager can handle it as a service
-        error — it never crashes the entire solve loop.
+        error - it never crashes the entire solve loop.
         """
         if streamablehttp_client is None or ClientSession is None:
             raise RuntimeError("MCP Python SDK is not installed")
@@ -1388,7 +1388,7 @@ class MCPLifecycleManager:
             pass
 
     async def _terminate_process(self, proc: subprocess.Popen) -> None:
-        """Async wrapper: terminate, wait up to grace, then kill — without blocking the loop."""
+        """Async wrapper: terminate, wait up to grace, then kill - without blocking the loop."""
         if proc.poll() is not None:
             return
         try:

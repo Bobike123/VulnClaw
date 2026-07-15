@@ -1,4 +1,4 @@
-"""VulnClaw Agent memory management — short/mid/long-term memory."""
+"""VulnClaw Agent memory management - short/mid/long-term memory."""
 
 from __future__ import annotations
 

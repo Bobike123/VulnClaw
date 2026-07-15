@@ -79,7 +79,7 @@ LOCAL_META_TOOLS = {
     "list_dir",
 }
 
-# 真正代表「利用」意图的攻击载荷特征——与传输方式（HTTP 方法/网络库）无关
+# 真正代表「利用」意图的攻击载荷特征--与传输方式（HTTP 方法/网络库）无关
 EXPLOIT_PAYLOAD_MARKERS = [
     "union select",
     " or 1=1",

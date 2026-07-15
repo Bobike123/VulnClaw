@@ -6,13 +6,13 @@ run on a ChatGPT subscription instead of a static key.
 
 Supported ``llm.auth_mode`` values:
 
-* ``static`` — (default) use ``llm.api_key`` verbatim.
-* ``oauth``  — use tokens obtained by ``vulnclaw login`` (OAuth 2.0 Authorization
+* ``static`` - (default) use ``llm.api_key`` verbatim.
+* ``oauth``  - use tokens obtained by ``vulnclaw login`` (OAuth 2.0 Authorization
                Code + PKCE). The "Sign in with ChatGPT" flow stores a refreshable
                access token; at call time it is used and silently refreshed via
                the refresh token when it expires (no browser, no static key).
 
-The resolved string is handed to the OpenAI client as ``api_key`` — the SDK sends
+The resolved string is handed to the OpenAI client as ``api_key`` - the SDK sends
 it as ``Authorization: Bearer <token>`` either way, so a static key and an OAuth
 access token are wire-compatible.
 """
@@ -373,11 +373,11 @@ def _resolve_oauth_token(llm: Any) -> str:
         if refresh:
             return str(_refresh_oauth(llm, refresh)["access_token"])
         if access:
-            # No refresh token and (possibly) expired — return what we have and
+            # No refresh token and (possibly) expired - return what we have and
             # let the API surface a 401 rather than failing pre-emptively.
             return access
         raise OAuthError(
-            "Not signed in or token expired — run `vulnclaw login`"
+            "Not signed in or token expired - run `vulnclaw login`"
         )
 
 
@@ -403,7 +403,7 @@ def has_llm_credentials(llm: Any) -> bool:
     """Whether usable credentials are configured, without minting a token.
 
     ``static`` requires a non-empty ``api_key``/``api_keys``; ``oauth``
-    requires stored tokens. This is a cheap pre-flight check — it does NOT
+    requires stored tokens. This is a cheap pre-flight check - it does NOT
     validate that the credential actually works.
     """
     mode = str(_get(llm, "auth_mode") or "static").strip().lower()

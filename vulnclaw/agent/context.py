@@ -1,4 +1,4 @@
-"""VulnClaw session context management — track pentest state across turns."""
+"""VulnClaw session context management - track pentest state across turns."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ class VulnerabilityFinding(BaseModel):
     def model_post_init(self, *args, **kwargs) -> None:
         # ★ Vulnerability completeness validation
         # If severity is High/Critical but evidence, vuln_type, remediation are all empty,
-        # this is a placeholder finding — warn but allow it.
+        # this is a placeholder finding - warn but allow it.
         if self.severity in ("Critical", "High"):
             if not self.evidence and not self.vuln_type and not self.remediation:
                 self.title = f"[unverified] {self.title}"
@@ -312,18 +312,18 @@ class SessionState(BaseModel):
     # ★ 结构化步骤记录（用于生成可读摘要）
     step_records: list[StepRecord] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
-    # ★ Confirmed facts vs unverified assumptions — critical for CTF reasoning
+    # ★ Confirmed facts vs unverified assumptions - critical for CTF reasoning
     confirmed_facts: list[str] = Field(default_factory=list, description="facts confirmed via tool verification")
     unverified_assumptions: list[str] = Field(
         default_factory=list, description="assumptions relied on in reasoning but not verified"
     )
-    # ★ Recon dimension completion tracking — prevent premature [DONE] in info gathering
+    # ★ Recon dimension completion tracking - prevent premature [DONE] in info gathering
     recon_dimensions_completed: dict[str, bool] = Field(
         default_factory=lambda: {
             "server": False,  # Dimension 1: server info (ports/real IP/OS/middleware/database)
             "website": False,  # Dimension 2: website info (architecture/fingerprint/WAF/sensitive dirs/source leaks/co-hosted sites/C-segment)
             "domain": False,  # Dimension 3: domain info (WHOIS/ICP filing/subdomains/DNS/certificate transparency)
-            "personnel": False,  # Dimension 4: personnel info (conditional — activated only on explicit social-eng need)
+            "personnel": False,  # Dimension 4: personnel info (conditional - activated only on explicit social-eng need)
         },
         description="four-dimension recon-model coverage tracking",
     )
@@ -494,7 +494,7 @@ class SessionState(BaseModel):
         # 保留原始步骤（向后兼容），连续去重避免标题刷屏污染报告
         if not self.executed_steps or self.executed_steps[-1] != step:
             self.executed_steps.append(step)
-        # Note: step_records creation removed — it was dead code after the return above
+        # Note: step_records creation removed - it was dead code after the return above
 
         # 创建结构化记录
         if action:
@@ -796,7 +796,7 @@ class SessionState(BaseModel):
         """Add a session note, filtering out code/symbol-heavy noise."""
         import re as _re
 
-        # Reject notes that are primarily code/symbols — these pollute evidence extraction
+        # Reject notes that are primarily code/symbols - these pollute evidence extraction
         # and create fake URLs/paths in findings.
         # Count Chinese characters vs code symbols
         chinese = _re.findall(r"[\u4e00-\u9fff]", note)
@@ -993,7 +993,7 @@ class ContextManager:
 
         for msg in messages:
             content = msg.get("content", "")
-            # Extract tool call/result information — these contain actual findings
+            # Extract tool call/result information - these contain actual findings
             if "调用工具:" in content or "工具结果:" in content:
                 key_parts.append(content[:300])
 
@@ -1019,7 +1019,7 @@ class ContextManager:
                         "Status:",
                         "Headers:",
                         "Body",
-                        # ★ Negative/failure markers — critical for CTF to avoid repeating
+                        # ★ Negative/failure markers - critical for CTF to avoid repeating
                         "失败",
                         "无效",
                         "没有",
@@ -1030,13 +1030,13 @@ class ContextManager:
                         "错误",
                         "404",
                         "timeout",
-                        # ★ Confirmed fact markers — verified by actual tool output
+                        # ★ Confirmed fact markers - verified by actual tool output
                         "已确认",
                         "确认",
                         "验证成功",
                         "verified",
                         "confirmed",
-                        # ★ Assumption markers — things the LLM assumed but didn't verify
+                        # ★ Assumption markers - things the LLM assumed but didn't verify
                         "假设",
                         "应该",
                         "可能",

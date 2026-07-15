@@ -1,4 +1,4 @@
-"""VulnClaw Report Generator — generate structured penetration test reports."""
+"""VulnClaw Report Generator - generate structured penetration test reports."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ REPORT_TEMPLATE = """\
 The following vulnerability hypotheses failed PoC verification and are excluded from the report:
 
 {% for f in rejected_findings %}
-- {{ f.title }} — {{ f.verification_note }}
+- {{ f.title }} - {{ f.verification_note }}
 {% endfor %}
 {% endif %}
 
@@ -87,13 +87,13 @@ Recommendations:
 ## 3. Detailed Findings
 
 {% for finding in findings %}
-### 3.{{ loop.index }} {{ finding.title }} — [{{ finding.severity }}]
+### 3.{{ loop.index }} {{ finding.title }} - [{{ finding.severity }}]
 {% if finding.verification_status == "pending" %}
-> ⚠️ **Pending verification** — this vulnerability was found by automatic detection and has not passed PoC verification. Please review manually.
+> ⚠️ **Pending verification** - this vulnerability was found by automatic detection and has not passed PoC verification. Please review manually.
 {% elif finding.verification_status == "rejected" %}
-> ❌ **Excluded (false positive)** — {{ finding.verification_note or "verified as a false positive" }}
+> ❌ **Excluded (false positive)** - {{ finding.verification_note or "verified as a false positive" }}
 {% elif finding.lifecycle_status == "needs_manual_review" %}
-> 🔎 **Needs manual review** — there is indirect evidence, but manual review is still required before promoting it to a confirmed vulnerability.
+> 🔎 **Needs manual review** - there is indirect evidence, but manual review is still required before promoting it to a confirmed vulnerability.
 {% endif %}
 
 - **Vulnerability type**: {{ finding.vuln_type or "Unclassified" }}
@@ -372,7 +372,7 @@ def _summarize_attack_surface(session: SessionState) -> str:
 # ── Persistent Pentest Cycle Report ──────────────────────────────────
 
 CYCLE_REPORT_TEMPLATE = """\
-# Persistent Penetration Test — Cycle Report
+# Persistent Penetration Test - Cycle Report
 
 ## Cycle Info
 
@@ -390,11 +390,11 @@ CYCLE_REPORT_TEMPLATE = """\
 ## Vulnerabilities Found This Cycle
 
 {% for finding in cycle_findings %}
-### {{ loop.index }}. {{ finding.title }} — [{{ finding.severity }}]
+### {{ loop.index }}. {{ finding.title }} - [{{ finding.severity }}]
 {% if finding.verification_status == "pending" %}
-> ⚠️ **Pending verification** — this vulnerability was found by automatic detection and has not passed PoC verification.
+> ⚠️ **Pending verification** - this vulnerability was found by automatic detection and has not passed PoC verification.
 {% elif finding.lifecycle_status == "needs_manual_review" %}
-> 🔎 **Needs manual review** — there is indirect evidence, but manual review is still required before promoting it to a confirmed vulnerability.
+> 🔎 **Needs manual review** - there is indirect evidence, but manual review is still required before promoting it to a confirmed vulnerability.
 {% endif %}
 - **Vulnerability type**: {{ finding.vuln_type or "Unclassified" }}
 - **Lifecycle**: {{ finding.lifecycle_status or "pending_verification" }}
@@ -422,7 +422,7 @@ No new vulnerabilities were found this cycle.
 |---|---------|------|------|---------|------|
 {% for finding in all_findings %}
 {% set ev = (finding.evidence or finding.description or "")[:80] %}
-| {{ loop.index }} | {{ finding.title }} | {{ finding.severity }} | {{ finding.vuln_type or "—" }} | {{ ev if ev else "—" }} | {% if finding.verification_status == "verified" %}✅ Verified{% elif finding.lifecycle_status == "needs_manual_review" %}🔎 Needs manual review{% elif finding.verification_status == "pending" %}⚠️ Pending{% else %}❌ Excluded{% endif %} |
+| {{ loop.index }} | {{ finding.title }} | {{ finding.severity }} | {{ finding.vuln_type or "-" }} | {{ ev if ev else "-" }} | {% if finding.verification_status == "verified" %}✅ Verified{% elif finding.lifecycle_status == "needs_manual_review" %}🔎 Needs manual review{% elif finding.verification_status == "pending" %}⚠️ Pending{% else %}❌ Excluded{% endif %} |
 {% endfor %}
 
 {% if not all_findings %}
@@ -612,7 +612,7 @@ def generate_persistent_cycle_report(
         output_path: Output file path. If None, auto-generate.
         prev_verified_ids: finding_id set of findings already verified before this
             cycle. When provided, "new this cycle" is computed by identity against
-            this set instead of slicing by an all-findings count — the count-based
+            this set instead of slicing by an all-findings count - the count-based
             slice mislabels prior verified findings as new when a cycle adds
             unverified findings.
 

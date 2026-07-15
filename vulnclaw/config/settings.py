@@ -1,4 +1,4 @@
-"""VulnClaw configuration management — load, save, and access settings."""
+"""VulnClaw configuration management - load, save, and access settings."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ def set_config_value(key: str, value: str) -> None:
     nodes (e.g. ``mcp.servers.chrome-devtools.enabled``).
 
     Raises:
-        ConfigKeyError: the key path doesn't resolve to a real config field —
+        ConfigKeyError: the key path doesn't resolve to a real config field -
             callers should catch this and print a clean message rather than
             letting a raw pydantic/AttributeError traceback surface.
     """
@@ -156,7 +156,7 @@ def set_config_value(key: str, value: str) -> None:
     field_name = parts[-1]
 
     if isinstance(obj, dict):
-        # Dict node — infer type from the existing value if present
+        # Dict node - infer type from the existing value if present
         existing = obj.get(field_name)
         if isinstance(existing, bool):
             value = value.lower() in ("true", "1", "yes")
@@ -166,7 +166,7 @@ def set_config_value(key: str, value: str) -> None:
             value = float(value)
         obj[field_name] = value
     else:
-        # Pydantic model node — use field annotation for type coercion
+        # Pydantic model node - use field annotation for type coercion
         model_fields = getattr(type(obj), "model_fields", {})
         if field_name not in model_fields:
             hint = _suggest_field(field_name, list(model_fields))
@@ -453,12 +453,12 @@ def _overlay_env(config: VulnClawConfig) -> VulnClawConfig:
 
 def _strip_defaults(raw: dict) -> None:
     """Remove fields that match defaults to keep config file clean."""
-    # Keep it simple — just strip known default values
+    # Keep it simple - just strip known default values
     if raw.get("llm", {}).get("api_key") == "":
         raw["llm"].pop("api_key", None)
     if raw.get("llm", {}).get("api_keys") == []:
         raw["llm"].pop("api_keys", None)
-    # Don't strip base_url/model if provider is set — they may be provider-specific
+    # Don't strip base_url/model if provider is set - they may be provider-specific
     # Only strip if still at OpenAI defaults
     if raw.get("llm", {}).get("provider") == "openai":
         if raw.get("llm", {}).get("base_url") == "https://api.openai.com/v1":
@@ -481,7 +481,7 @@ def apply_provider_preset(config: VulnClawConfig, provider_name: str) -> VulnCla
     try:
         provider = LLMProvider(provider_name.lower())
     except ValueError:
-        # Unknown provider — treat as custom, don't auto-fill
+        # Unknown provider - treat as custom, don't auto-fill
         config.llm.provider = provider_name
         return config
 
@@ -555,7 +555,7 @@ def fetch_provider_models_async(
     Calls ``fetch_provider_models()`` in a daemon thread.  When the
     fetch completes, *on_result* (if provided) is called with the
     model list on the **calling** thread via ``app.call_later()``-style
-    scheduling — the caller is responsible for arranging thread-safe
+    scheduling - the caller is responsible for arranging thread-safe
     delivery (e.g. by passing a lambda that uses ``call_later``).
 
     Returns the ``Thread`` object so callers can track or join it.

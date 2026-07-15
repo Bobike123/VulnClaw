@@ -1,4 +1,4 @@
-"""VulnClaw Vulnerability Verifier — validate findings before they enter the report.
+"""VulnClaw Vulnerability Verifier - validate findings before they enter the report.
 
 Core principle: an unverified vulnerability = a false positive = not written to the report
 
@@ -91,7 +91,7 @@ class PoCGenerator:
     # ⚠️ 模板使用 *单花括号* 作为 Python 语法（dict 字面量、f-string 插值）。
     # 唯一的模板占位符是 ``{target}`` / ``{payload}`` / ``{baseline_len}`` /
     # ``{path}``，它们由 :meth:`generate_poc` 通过 ``str.replace`` 精确替换。
-    # 不要使用 ``{{`` / ``}}`` 转义——渲染器不是 ``str.format``，双花括号会原样
+    # 不要使用 ``{{`` / ``}}`` 转义--渲染器不是 ``str.format``，双花括号会原样
     # 残留到生成的 PoC 中，导致 ``dict`` 字面量变成 ``set``（``TypeError``）或
     # f-string 打印字面量 ``{var}`` 文本而非插值结果。
     POC_TEMPLATES: dict[str, str] = {
@@ -530,7 +530,7 @@ class VerifierExecutor:
 
 
 class VulnerabilityVerifier:
-    """Vulnerability verifier — the core verification flow."""
+    """Vulnerability verifier - the core verification flow."""
 
     def __init__(self, target: str, baseline_len: int = 0) -> None:
         """Initialize the verifier.

@@ -120,7 +120,7 @@ def extract_scope_targets(tool_name: str, args: dict[str, Any]) -> list[str]:
         for match in re.findall(r"https?://[^\s'\"`)]+", str(args.get("code", "") or "")):
             out.append(match)
     else:
-        # Unknown / MCP tool — best-effort check of the common target keys.
+        # Unknown / MCP tool - best-effort check of the common target keys.
         for key in ("url", "target", "base_url", "host"):
             _add(args.get(key))
     return out
@@ -358,7 +358,7 @@ async def execute_mcp_tool(agent: AgentContext, tool_name: str, args: dict[str, 
         return approval_block
 
     # Persistent-mode safety budget / emergency stop: once a duration/cycle/
-    # tool-call ceiling is hit — or an operator drops the emergency-stop file —
+    # tool-call ceiling is hit - or an operator drops the emergency-stop file -
     # no further tool calls are dispatched. Inert outside persistent runs
     # (agent._budget is only set for the duration of persistent_pentest).
     budget = getattr(agent, "_budget", None)
@@ -370,7 +370,7 @@ async def execute_mcp_tool(agent: AgentContext, tool_name: str, args: dict[str, 
             return budget.status().message()
         budget.record_tool_call()
 
-    # Passed every safety gate — record what was allowed to run.
+    # Passed every safety gate - record what was allowed to run.
     _audit(agent, "tool_call", tool=tool_name, target=audit_target, status="dispatched")
 
     if tool_name == "python_execute":
@@ -379,11 +379,22 @@ async def execute_mcp_tool(agent: AgentContext, tool_name: str, args: dict[str, 
     if tool_name == "file_read":
         return await execute_file_read(agent, args)
 
-    if tool_name == "file_write":
-        return await execute_file_write(agent, args)
-
-    if tool_name == "file_edit":
-        return await execute_file_edit(agent, args)
+    if tool_name in ("file_write", "file_edit"):
+        # File mutations get a dedicated outcome record (path + success) on top
+        # of the generic "tool_call dispatched" event above - so the audit trail
+        # shows *which* file the agent wrote/edited, not just that it called a
+        # file tool. Success is read from the tool's [✓]/[!] result convention.
+        handler = execute_file_write if tool_name == "file_write" else execute_file_edit
+        result = await handler(agent, args)
+        _audit(
+            agent,
+            "log",
+            event="file_mutation",
+            tool=tool_name,
+            path=str(args.get("path", "")),
+            ok=result.startswith("[✓]"),
+        )
+        return result
 
     if tool_name == "list_dir":
         return await execute_list_dir(agent, args)
@@ -687,7 +698,7 @@ def build_openai_tools(mcp_manager: Any) -> list[dict[str, Any]]:
                 "description": (
                     "Make a targeted edit to an existing file in the launch directory by replacing an exact "
                     "string match. old_string must match exactly (including whitespace) and, by default, "
-                    "uniquely — include enough surrounding context to disambiguate, or pass replace_all."
+                    "uniquely - include enough surrounding context to disambiguate, or pass replace_all."
                 ),
                 "parameters": {
                     "type": "object",
@@ -973,7 +984,7 @@ def build_openai_tools(mcp_manager: Any) -> list[dict[str, Any]]:
                 "name": "unauth_test",
                 "description": (
                     "Unauthorized-access probe. Requests each of a set of endpoints (usually collected by js_recon) without credentials, "
-                    "and judges by status code / response body / content type: ⚠ likely unauthorized (returns data) / ✓ auth-blocked / ↪ redirect to login / — not found. "
+                    "and judges by status code / response body / content type: ⚠ likely unauthorized (returns data) / ✓ auth-blocked / ↪ redirect to login / - not found. "
                     "When auth_header is given, does a with/without-token differential; if the same data is reachable without a token, it flags 🔴 confirmed unauthorized. "
                     "Strictly read-only: sends safe GETs only, skips destructive endpoints like delete/update/sms, and never bulk-iterates IDs."
                 ),
@@ -1246,7 +1257,7 @@ def parse_nmap_xml(xml_output: str, target: str) -> str:
         lines = xml_output.strip().splitlines()[:80]
         return "nmap raw output:\n" + "\n".join(lines)
 
-    lines = [f"nmap scan results — {target}", "=" * 60]
+    lines = [f"nmap scan results - {target}", "=" * 60]
     for host in root.findall(".//host"):
         hostname = host.find(".//hostname[@type='user']")
         addrs = [a.get("addr", "") for a in host.findall("address")]
@@ -1262,7 +1273,7 @@ def parse_nmap_xml(xml_output: str, target: str) -> str:
             host_str = f"\n[host] {host_ip}"
         if hostname is not None:
             host_str += f" ({hostname.get('name', '')})"
-        host_str += f" — {status_val}"
+        host_str += f" - {status_val}"
         lines.append(host_str)
 
         for port in host.findall(".//port"):
@@ -1322,7 +1333,7 @@ def _write_python_audit(
     """Append a redacted, hashed audit record for one python_execute request.
 
     Records the decision, code hash, timing, status and any generated files.
-    Never writes the raw code or secrets — the preview is redacted and truncated.
+    Never writes the raw code or secrets - the preview is redacted and truncated.
     """
     safety = getattr(agent.config, "safety", None)
     if safety is None or not getattr(safety, "python_execute_audit_enabled", True):
@@ -1708,7 +1719,7 @@ async def execute_brute_force(agent: AgentContext, args: dict[str, Any]) -> str:
         _sync_cookies_to_shared_jar(agent, session_cookies)
 
     summary = [
-        f"[+] Brute-force complete — {url}",
+        f"[+] Brute-force complete - {url}",
         f"    User: {username or '(unspecified)'}",
         "",
         "    Results:",

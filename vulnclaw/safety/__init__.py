@@ -1,11 +1,11 @@
-"""VulnClaw safety subsystem — centralized authorization & auditing controls.
+"""VulnClaw safety subsystem - centralized authorization & auditing controls.
 
 This package is the single home for the safety spine:
 
-- :mod:`redaction` — secret scrubbing for logs, reports, audit records.
-- :mod:`scope`     — the engagement scope model + central network authorization.
-- :mod:`audit`     — tamper-evident structured audit logging.
-- :mod:`sandbox`   — the hardened runner for the high-risk ``python_execute`` tool.
+- :mod:`redaction` - secret scrubbing for logs, reports, audit records.
+- :mod:`scope`     - the engagement scope model + central network authorization.
+- :mod:`audit`     - tamper-evident structured audit logging.
+- :mod:`sandbox`   - the hardened runner for the high-risk ``python_execute`` tool.
 
 Safety checks are centralized here rather than scattered across tools so that no
 network-capable tool can bypass scope validation and no secret reaches a log.

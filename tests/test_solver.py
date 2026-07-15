@@ -133,7 +133,7 @@ async def test_solve_rejects_hallucinated_flag(monkeypatch):
         return {}  # 之后不再提出 → 前沿耗尽
 
     async def fake_explore(agent, board, intent, *, max_tool_rounds, evidence_buffer, stream_sink=None):
-        # 不往 evidence_buffer 写 flag —— 模拟模型凭空编造
+        # 不往 evidence_buffer 写 flag -- 模拟模型凭空编造
         return True, "成功拿到 flag{HALLUCINATED}"
 
     monkeypatch.setattr(solver, "reason_step", fake_reason)

@@ -25,7 +25,7 @@ def _retriever_for(agent: AgentContext) -> Optional[KnowledgeRetriever]:
     if getattr(agent, "_kb_retriever", None) is None:
         try:
             agent._kb_retriever = KnowledgeRetriever()
-        except Exception as exc:  # defensive — never break the agent loop
+        except Exception as exc:  # defensive - never break the agent loop
             logger.warning("KB retriever initialization failed: %s", exc)
             agent._kb_retriever = None
     return agent._kb_retriever
@@ -65,7 +65,7 @@ def build_kb_context(agent: AgentContext, user_input: Optional[str] = None) -> s
 
     try:
         context = _collect_kb_context(agent, retriever, user_input, services, finding_types)
-    except Exception as exc:  # defensive — retrieval must never break the loop
+    except Exception as exc:  # defensive - retrieval must never break the loop
         logger.warning("KB context build failed: %s", exc)
         context = ""
 

@@ -146,7 +146,7 @@ def test_chatgpt_login_and_refresh(_config_dir, monkeypatch):
     refreshes = {"n": 0}
 
     class Provider(BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802 — /authorize -> 302 to callback
+        def do_GET(self):  # noqa: N802 - /authorize -> 302 to callback
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             assert q["client_id"][0] == tp.CHATGPT_CLIENT_ID
             assert q["code_challenge_method"][0] == "S256"
@@ -160,7 +160,7 @@ def test_chatgpt_login_and_refresh(_config_dir, monkeypatch):
             self.send_header("Location", loc)
             self.end_headers()
 
-        def do_POST(self):  # noqa: N802 — /token
+        def do_POST(self):  # noqa: N802 - /token
             n = int(self.headers.get("Content-Length", 0))
             form = urllib.parse.parse_qs(self.rfile.read(n).decode())
             if form["grant_type"][0] == "authorization_code":

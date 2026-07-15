@@ -1,7 +1,7 @@
 """PDF export for VulnClaw reports.
 
 Spec §5.3: consume VulnClaw's existing report (the markdown produced by
-``vulnclaw.report.generator.generate_report``) and render it to a styled PDF —
+``vulnclaw.report.generator.generate_report``) and render it to a styled PDF -
 not a parallel report builder. ``reportlab`` is an optional extra
 (``vulnclaw[pdf]``); importing this module is fine without it, but calling
 ``export_pdf`` without the extra raises a clear, actionable error.

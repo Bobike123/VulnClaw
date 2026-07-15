@@ -1,7 +1,7 @@
 """File-system access tools, jailed to the directory VulnClaw was launched from.
 
 Gives the agent read/write/edit/list access to the project you're running it
-in — the same "workbench" ergonomics as Claude Code's Read/Write/Edit tools —
+in - the same "workbench" ergonomics as Claude Code's Read/Write/Edit tools -
 scoped to ``agent.project_dir`` (captured once at :class:`AgentCore` startup,
 see ``agent/core.py``). Unlike ``python_execute`` these are on by default (no
 ``safety.enable_*`` toggle): they never reach the network, and jailing +
@@ -40,7 +40,7 @@ def resolve_in_project(agent: "AgentContext", raw_path: str) -> Path:
     Raises ``FileToolError`` for empty paths, paths that resolve outside the
     project directory (``..`` traversal or a symlink escape), or paths that
     match the sandbox's sensitive-path blocklist (SSH keys, ``.env``,
-    ``.vulnclaw``, cloud/browser credentials, etc.) — even when they'd
+    ``.vulnclaw``, cloud/browser credentials, etc.) - even when they'd
     otherwise land inside the project dir, since a cloned repo can still
     contain real secrets.
     """
@@ -51,7 +51,7 @@ def resolve_in_project(agent: "AgentContext", raw_path: str) -> Path:
     root = agent.project_dir
     candidate = (root / raw_path) if not Path(raw_path).is_absolute() else Path(raw_path)
 
-    # Resolve symlinks against the *existing* portion of the path — for a
+    # Resolve symlinks against the *existing* portion of the path - for a
     # not-yet-created write target, resolve the nearest existing parent and
     # re-append the remaining components so a symlinked parent dir can't be
     # used to escape the jail either.

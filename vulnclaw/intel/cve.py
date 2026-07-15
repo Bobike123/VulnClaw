@@ -308,7 +308,7 @@ def format_cve_report(cves: list[CVEEntry], title: str = "CVE Results") -> str:
     lines.append("")
 
     for cve in cves[:5]:
-        lines.append(f"### {cve.cve_id} — CVSS {cve.cvss_score} ({cve.severity_label})")
+        lines.append(f"### {cve.cve_id} - CVSS {cve.cvss_score} ({cve.severity_label})")
         lines.append(f"\n{cve.description}\n")
         if cve.weaknesses:
             lines.append(f"**Weaknesses:** {', '.join(cve.weaknesses)}")

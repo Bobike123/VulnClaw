@@ -316,7 +316,7 @@ class TestFileToolsDispatch:
     """file_read/file_write/file_edit/list_dir: schema presence + full-chokepoint dispatch.
 
     Unlike python_execute, these are on by default and classified as local-meta
-    (see constraint_policy.LOCAL_META_TOOLS) — they never touch the network or
+    (see constraint_policy.LOCAL_META_TOOLS) - they never touch the network or
     the target, so task-action constraints (recon-only, strict_mode) must not
     block them the way they'd block fetch/python_execute/nmap.
     """
@@ -363,7 +363,7 @@ class TestFileToolsDispatch:
 
     async def test_file_write_not_blocked_when_only_recon_allowed(self, tmp_path):
         """Regression guard: file tools are local-meta, not a 'scan'/'exploit'
-        action — recon-only strict_mode must not treat a local file write as
+        action - recon-only strict_mode must not treat a local file write as
         an out-of-scope action the way it correctly would for fetch/nmap."""
         import vulnclaw.agent.builtin_tools as builtin_tools
 

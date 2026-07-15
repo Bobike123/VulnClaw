@@ -1,4 +1,4 @@
-"""VulnClaw Agent Runtime State — per-run mutable state containers."""
+"""VulnClaw Agent Runtime State - per-run mutable state containers."""
 
 from __future__ import annotations
 

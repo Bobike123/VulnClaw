@@ -1,4 +1,4 @@
-"""VulnClaw Knowledge Store — manage and persist security knowledge base."""
+"""VulnClaw Knowledge Store - manage and persist security knowledge base."""
 
 from __future__ import annotations
 

@@ -26,7 +26,7 @@ vulnclaw scope check https://api.target/  # is a target in scope? (exit 1 if not
 
 Exploitation, post-exploitation, credential brute-force, OSINT, JS-secret extraction, PoC generation, active browser interaction (form submit / click / in-page JS), and crafted-request mutation (Burp / browser network context) require explicit approval before running.
 
-- Modes: `dry-run` (never executes — explains what would happen), `interactive` (prompt on a TTY), `non-interactive` (requires a matching entry in a signed `./.vulnclaw-approvals.yaml`). There is **no silent auto-approve**.
+- Modes: `dry-run` (never executes - explains what would happen), `interactive` (prompt on a TTY), `non-interactive` (requires a matching entry in a signed `./.vulnclaw-approvals.yaml`). There is **no silent auto-approve**.
 - Configure via `approval.mode` / `approval.require_approval` or `VULNCLAW_APPROVAL_MODE`.
 
 ### 3. Risky-capability switches (all default-off)
@@ -45,7 +45,7 @@ The stop file is honoured even when budgets are otherwise disabled.
 
 ### 5. Tamper-evident audit trail
 
-Every safety-relevant event — session start, tool call, scope denial, approval decision, budget stop — is appended to a per-session JSONL log, each record hash-chained to the previous one so edits, deletions, or reordering are detectable. Secrets are redacted before writing.
+Every safety-relevant event - session start, tool call, scope denial, approval decision, budget stop - is appended to a per-session JSONL log, each record hash-chained to the previous one so edits, deletions, or reordering are detectable. Secrets are redacted before writing.
 
 ```bash
 vulnclaw audit list                 # sessions on disk
@@ -57,7 +57,7 @@ vulnclaw audit verify <file>        # verify a chain (exit 1 if broken)
 
 - The config file (which holds API keys) is written owner-only (`0600`), and the config directory is kept `0700`. `vulnclaw doctor --security` flags any secret file with loose permissions.
 - Secrets are scrubbed from logs, reports, and audit records via `vulnclaw/safety/redaction.py`.
-- `python_execute` **defaults to disabled** and runs in a hardened, best-effort sandbox (dedicated workdir, scrubbed environment, path/network guards, POSIX resource limits, subprocess/ctypes prechecks). **It is defense-in-depth, not containment** — do not rely on it to run untrusted code. Enable it only in controlled environments.
+- `python_execute` **defaults to disabled** and runs in a hardened, best-effort sandbox (dedicated workdir, scrubbed environment, path/network guards, POSIX resource limits, subprocess/ctypes prechecks). **It is defense-in-depth, not containment** - do not rely on it to run untrusted code. Enable it only in controlled environments.
 
 ### Reviewing your posture
 

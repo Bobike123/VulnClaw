@@ -2,7 +2,7 @@
 
 Helper modules annotate their handle as ``agent: AgentContext``. This test is
 the drift guard for that contract: whenever a helper starts reaching for a new
-member — or ``AgentCore`` drops one — the surface and the real object part ways,
+member - or ``AgentCore`` drops one - the surface and the real object part ways,
 and this fails.
 
 Only the real ``AgentCore`` is required to conform. Focused test doubles
@@ -24,6 +24,6 @@ def test_agent_core_satisfies_agent_context() -> None:
 
 
 def test_agent_context_is_not_vacuous() -> None:
-    # A bare object lacks the surface, so the protocol is a real constraint —
+    # A bare object lacks the surface, so the protocol is a real constraint -
     # guards against the check silently degrading to "everything conforms".
     assert not isinstance(object(), AgentContext)

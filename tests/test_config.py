@@ -1,4 +1,4 @@
-"""VulnClaw Config Module Tests — schema.py + settings.py"""
+"""VulnClaw Config Module Tests - schema.py + settings.py"""
 
 import pytest
 
@@ -282,7 +282,7 @@ class TestSettingsLoad:
     def test_set_config_value(self):
         from vulnclaw.config.settings import set_config_value
 
-        # set_config_value(key, value) — sets in the YAML config
+        # set_config_value(key, value) - sets in the YAML config
         set_config_value("llm.model", "gpt-4o-mini")  # Should not crash
 
     def test_set_config_nested(self):

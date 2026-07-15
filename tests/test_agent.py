@@ -1,4 +1,4 @@
-"""VulnClaw Agent Module Tests — context.py + memory.py + prompts.py + core.py"""
+"""VulnClaw Agent Module Tests - context.py + memory.py + prompts.py + core.py"""
 
 import time
 
@@ -703,7 +703,7 @@ class TestAgentCore:
         assert agent._detect_phase("exploit") == PentestPhase.EXPLOITATION
         assert agent._detect_phase("尝试利用") == PentestPhase.EXPLOITATION
         # Note: "利用漏洞" matches VULN_DISCOVERY because "漏洞" appears first in the scan
-        # This is a known limitation — more specific keywords should win
+        # This is a known limitation - more specific keywords should win
         assert agent._detect_phase("poc验证") == PentestPhase.EXPLOITATION
 
     def test_phase_detection_post(self):
@@ -1142,7 +1142,7 @@ class TestAgentCore:
 
         Regression test: chat() used to only stuff the error into result.output,
         which the REPL's streaming callers never print (they rely entirely on
-        the sink) — so the failure was silently dropped and the REPL looked
+        the sink) - so the failure was silently dropped and the REPL looked
         hung with no feedback.
         """
         import vulnclaw.agent.core as core_mod

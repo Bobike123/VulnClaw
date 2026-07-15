@@ -1,4 +1,4 @@
-"""VulnClaw Knowledge Retriever — retrieve relevant knowledge for the agent.
+"""VulnClaw Knowledge Retriever - retrieve relevant knowledge for the agent.
 
 Retrieval degrades gracefully across three backends:
 

@@ -44,14 +44,14 @@ def _token(label: str, secret: str) -> str:
     return _TOKEN.format(label=label, fp=fingerprint(secret))
 
 
-# ── Private-key blocks (PEM) — redacted whole ──────────────────────────
+# ── Private-key blocks (PEM) - redacted whole ──────────────────────────
 _PRIVATE_KEY_RE = re.compile(
     r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"
     r".*?-----END (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----",
     re.DOTALL,
 )
 
-# ── Standalone token patterns — the whole match is the secret ──────────
+# ── Standalone token patterns - the whole match is the secret ──────────
 # Order matters: more specific patterns first (anthropic before openai, etc.).
 _TOKEN_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("anthropic_key", re.compile(r"sk-ant-[A-Za-z0-9_-]{16,}")),
@@ -66,7 +66,7 @@ _TOKEN_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("jwt", re.compile(r"eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{4,}")),
 ]
 
-# ── Bearer tokens — redact only the credential after the scheme ────────
+# ── Bearer tokens - redact only the credential after the scheme ────────
 _BEARER_RE = re.compile(r"(?i)(bearer\s+)([A-Za-z0-9._~+/=-]{8,})")
 
 # ── key = value / "key": "value" assignments (covers .env, JSON, dicts) ─
@@ -129,7 +129,7 @@ def contains_secret(text: Any) -> bool:
 
 
 def detect_secrets(text: Any) -> list[dict[str, str]]:
-    """Detect secrets and return metadata only — never the raw value.
+    """Detect secrets and return metadata only - never the raw value.
 
     Each entry is ``{"type": <label>, "fingerprint": <sha256 prefix>}``. Used by
     JS-secret extraction and evidence handling so findings can record *what* kind

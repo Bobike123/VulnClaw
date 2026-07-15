@@ -1,4 +1,4 @@
-"""Engagement scope — the central network-authorization boundary.
+"""Engagement scope - the central network-authorization boundary.
 
 Every target-directed network action must pass through a :class:`ScopeValidator`.
 The model is **deny-by-default**: only hosts/IPs explicitly allowed by the scope
@@ -6,7 +6,7 @@ file (or by a deliberately enabled baseline: localhost, and optionally private-l
 or public) are in scope. Denied entries always win over allow entries.
 
 The validator works on the literal host/IP/URL it is given and never performs DNS
-resolution itself — that keeps decisions deterministic, testable, and free of
+resolution itself - that keeps decisions deterministic, testable, and free of
 surprise lookups. Callers that resolve a name to an IP should validate both.
 """
 
@@ -44,7 +44,7 @@ class ScopeDeny(BaseModel):
 
 
 class ScopeLimits(BaseModel):
-    # 0 / 0.0 means "unset" — the caller falls back to its own defaults.
+    # 0 / 0.0 means "unset" - the caller falls back to its own defaults.
     max_request_rate: float = Field(default=0.0)
     max_concurrency: int = Field(default=0)
 
@@ -227,7 +227,7 @@ class ScopeValidator:
 
         addr = _as_ip(host)
 
-        # Deny precedence — a denied entry always wins.
+        # Deny precedence - a denied entry always wins.
         if addr is not None:
             if _ip_in_ranges(addr, self.scope.deny.ip_ranges):
                 return _deny(host, "matches a denied IP range", _ip_category(addr))

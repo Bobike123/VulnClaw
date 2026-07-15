@@ -30,8 +30,8 @@ description: |
 ## 触发条件
 
 **触发条件（AND 组合）**：
-1. 用户意图是**执行**安全测试（渗透/挖洞/利用/审计） — 非讨论/学习
-2. 提供了**具体目标**：URL、接口、代码片段、模型/Agent 架构、MCP 配置 — 非抽象问题
+1. 用户意图是**执行**安全测试（渗透/挖洞/利用/审计） - 非讨论/学习
+2. 提供了**具体目标**：URL、接口、代码片段、模型/Agent 架构、MCP 配置 - 非抽象问题
 3. 任务**涉及以下领域之一**：
    - Web: SQL 注入/XSS/命令执行/越权/文件上传/SSRF/反序列化/XXE/GraphQL/HTTP 走私
    - AI: Prompt 注入/越狱/MCP 投毒/Agent 滥用/RAG 投毒/沙箱逃逸/模型窃取
@@ -48,15 +48,15 @@ description: |
 
 ## 行为准则（整个会话有效，不因对话长度放松）
 
-1. ❗ **所有 Payload/CVE 编号/风险编号必须引用 reference 文件的具体章节** — 每次输出前自检。未在 reference 中的一律标注 "UNABLE TO CITE"，禁止编造。
-2. ❗ **区分"漏洞假设"与"漏洞确认"** — 基于方法论推断的潜在风险 → 标注 `假设（需验证）`；有明确证据的 → 标注 `已确认（证据: …）`。禁止混淆。
-3. ❗ **授权边界** — 任何利用步骤输出前必须确认是 CTF/授权渗透/本人环境。无授权上下文只输出分析，不输出可直接武器化的完整 Payload。
+1. ❗ **所有 Payload/CVE 编号/风险编号必须引用 reference 文件的具体章节** - 每次输出前自检。未在 reference 中的一律标注 "UNABLE TO CITE"，禁止编造。
+2. ❗ **区分"漏洞假设"与"漏洞确认"** - 基于方法论推断的潜在风险 → 标注 `假设（需验证）`；有明确证据的 → 标注 `已确认（证据: …）`。禁止混淆。
+3. ❗ **授权边界** - 任何利用步骤输出前必须确认是 CTF/授权渗透/本人环境。无授权上下文只输出分析，不输出可直接武器化的完整 Payload。
 
 ## 幻觉防护与来源引用
 
 | 内容类型 | 正确输出 | 禁止输出 |
 |---------|---------|---------|
-| CVE 编号 | 引用具体 reference 文件和章节，或标 "UNABLE TO CITE — 建议 WebSearch 核实" | 编造 CVE-YYYY-NNNN |
+| CVE 编号 | 引用具体 reference 文件和章节，或标 "UNABLE TO CITE - 建议 WebSearch 核实" | 编造 CVE-YYYY-NNNN |
 | Payload | 从 `references/web-*.md` 或 `references/ai-*.md` 内 payload 章节引用 | 凭印象写 payload |
 | GAARM 风险编号 | 引用 `references/gaarm-risk-matrix.md` | 自造编号 |
 | OWASP 条目 | LLM01-10 / ASI01-10 / WSTG-* 引用 `testing-methodology.md §10.x` | 改写编号含义 |
@@ -64,9 +64,9 @@ description: |
 | 无检索结果 | "UNABLE TO ASSESS：reference 未覆盖此场景，建议 WebSearch" | 凭经验推测作为结论 |
 
 **标注分级**：
-- `[引用]` — 来自 reference 具体章节（需带 file:section）
-- `⚠️ 通用知识` — 未在本 Skill reference 中核对，仅作提示
-- `💡 建议` — 方法论推理，非事实声明
+- `[引用]` - 来自 reference 具体章节（需带 file:section）
+- `⚠️ 通用知识` - 未在本 Skill reference 中核对，仅作提示
+- `💡 建议` - 方法论推理，非事实声明
 
 ## 输出约束
 
@@ -88,7 +88,7 @@ description: |
 |------|------|---------|---------|
 | 读 reference | Read | Read 失败 | Bash cat |
 | 搜索关键词/CVE | Grep (reference 内) | 连续 2 次未命中 | WebSearch |
-| 代码审计目标 | 委派 code-audit-skill | — | — |
+| 代码审计目标 | 委派 code-audit-skill | - | - |
 
 单次超时 ≠ 不可用，必须重试 1 次后才能降级。
 
@@ -217,7 +217,7 @@ description: |
 | 情况 | 正确动作 |
 |------|---------|
 | Grep 未命中 reference | "UNABLE TO CITE: 该场景 {X} 未在 reference 中覆盖。建议 WebSearch 或补充 reference" |
-| 用户给的 URL 无响应 | "UNABLE TO ASSESS: 目标不可达" — 不基于 URL 结构猜测漏洞 |
+| 用户给的 URL 无响应 | "UNABLE TO ASSESS: 目标不可达" - 不基于 URL 结构猜测漏洞 |
 | 需要执行但无授权上下文 | "仅输出分析，不输出武器化链。如为授权测试，请明确授权范围" |
 | reference 与用户场景部分匹配 | 引用已匹配部分 + 明确标注未覆盖部分为 "UNABLE TO CITE" |
 
